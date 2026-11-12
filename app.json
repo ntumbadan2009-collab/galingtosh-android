@@ -19,14 +19,6 @@
         "android.permission.READ_MEDIA_AUDIO"
       ]
     },
-    "plugins": [
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Galingtosh a besoin d'accéder aux médias que vous choisissez pour vos productions.",
-          "cameraPermission": "Galingtosh a besoin de la caméra uniquement lorsque vous choisissez de capturer un média."
-        }
-      ]
-    ]
+    "plugins": []
   }
 }
