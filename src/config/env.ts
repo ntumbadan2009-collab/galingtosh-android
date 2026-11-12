@@ -1,11 +1,7 @@
-const required = (value: string | undefined, name: string) => {
-  if (!value?.trim()) throw new Error(`Configuration manquante : ${name}`);
-  return value.trim();
-};
+const DEFAULT_SUPABASE_URL = "https://lmlwekcytivszlszmfvy.supabase.co";
+const DEFAULT_SUPABASE_KEY = "sb_publishable_kmotb1BBdQ20kWuB-ryirQ_9Rqcq88U";
 
 export const ENV = {
-  supabaseUrl: required(process.env.EXPO_PUBLIC_SUPABASE_URL, "EXPO_PUBLIC_SUPABASE_URL"),
-  supabaseKey: required(process.env.EXPO_PUBLIC_SUPABASE_KEY, "EXPO_PUBLIC_SUPABASE_KEY"),
-  googleWebClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "",
-  googleIosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? ""
+  supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() || DEFAULT_SUPABASE_URL,
+  supabaseKey: process.env.EXPO_PUBLIC_SUPABASE_KEY?.trim() || DEFAULT_SUPABASE_KEY
 };
