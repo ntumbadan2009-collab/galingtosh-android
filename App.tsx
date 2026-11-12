@@ -1,55 +1,249 @@
-import React, { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View, Modal } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
+import React,{useCallback,useEffect,useMemo,useState} from 'react';
+import {ActivityIndicator,Alert,FlatList,Image,KeyboardAvoidingView,Linking,Modal,Platform,Pressable,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from 'react-native';
+import {SafeAreaProvider,SafeAreaView} from 'react-native-safe-area-context';
+import {StatusBar as ExpoStatusBar} from 'expo-status-bar';
+import {Feather,Ionicons} from '@expo/vector-icons';
+import {LinearGradient} from 'expo-linear-gradient';
+import * as DocumentPicker from 'expo-document-picker';
+import * as WebBrowser from 'expo-web-browser';
+import {supabase,supabaseConfigured,SUPABASE_URL} from './src/lib/supabase';
+import {sendToAgent} from './src/lib/ai';
+import {getRenderDownloadUrl,getRenderJob,listRenderJobs,requestRender,RenderJob} from './src/lib/render';
+import {FilmDocument} from './src/types/film';
 
-type Message = { id: string; role: 'user' | 'assistant'; text: string };
-type Screen = 'chat' | 'library' | 'settings';
-const PURPLE = '#813BFF';
+WebBrowser.maybeCompleteAuthSession();
+type Tab='studio'|'projects'|'media'|'account';
+type Message={id:string;role:'user'|'assistant';text:string};
+type Project={id:string;titre:string;brief:string|null;format:string|null;statut:string|null;version:number|null;duree_cible:number|null};
+type Asset={id:string;type:string;source_kind:string;titre:string;provenance:any;licence:string;licence_ok:boolean;duree:number|null;proxy_url:string|null;score:number|null;fiche:any;utilisation:number|null};
+type Attachment={bucket:'user-uploads';path:string;name:string;mime_type:string};
+const ENGINE='https://galingtosh-engine.onrender.com';
+const REDIRECT='galingtosh://auth/callback';
+const C={bg:'#080611',surface:'#12101E',surface2:'#191629',surface3:'#211B35',border:'#332846',text:'#F7F3FF',muted:'#B2A7C8',dim:'#81758F',purple:'#783BFF',violet:'#A75BFF',pink:'#F17BCB',green:'#55D6A1',amber:'#FFC66D',red:'#FF7187'};
 
-export default function App() {
-  const [screen, setScreen] = useState<Screen>('chat');
-  const [drawer, setDrawer] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [history, setHistory] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
-  const greeting = messages.length === 0;
-  const title = screen === 'library' ? 'Ma bibliothèque' : screen === 'settings' ? 'Paramètres' : 'Galingtosh';
-  const suggestions = useMemo(() => ['Imagine un court-métrage de science-fiction', 'Crée un film romantique à Paris', 'Aide-moi à écrire un scénario'], []);
+function BrandMark({size=43}:{size?:number}){return <LinearGradient colors={['#FFC66D','#F16BCB','#793BFF']} start={{x:0,y:0}} end={{x:1,y:1}} style={{width:size,height:size,borderRadius:size*.35,alignItems:'center',justifyContent:'center'}}><Ionicons name="film" size={size*.58} color="#130D24"/></LinearGradient>;}
+function Button({title,onPress,secondary=false,loading=false,disabled=false,icon}:{title:string;onPress:()=>void;secondary?:boolean;loading?:boolean;disabled?:boolean;icon?:any}){return <Pressable onPress={onPress} disabled={disabled||loading} style={({pressed})=>[s.button,secondary&&s.buttonSecondary,(pressed||disabled)&&{opacity:.55}]}>{loading?<ActivityIndicator color={C.text}/>:icon?<Feather name={icon} size={17} color={secondary?C.violet:'#FFF'}/>:null}<Text style={s.buttonText}>{title}</Text></Pressable>;}
+function Field({value,onChangeText,placeholder,multiline=false,secureTextEntry=false,keyboardType='default',autoCapitalize='sentences',style}:any){return <TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={C.dim} multiline={multiline} secureTextEntry={secureTextEntry} keyboardType={keyboardType} autoCapitalize={autoCapitalize} textAlignVertical={multiline?'top':'center'} selectionColor={C.violet} style={[s.field,multiline&&s.multiline,style]}/>;}
+function Panel({children,style}:any){return <View style={[s.panel,style]}>{children}</View>;}
 
-  function newChat() { if (messages.length) setHistory(h => [messages[0].text.slice(0, 48), ...h]); setMessages([]); setDraft(''); setScreen('chat'); setDrawer(false); }
-  function send(text = draft) {
-    const value = text.trim(); if (!value || busy) return;
-    setMessages(m => [...m, { id: String(Date.now()), role: 'user', text: value }]); setDraft(''); setBusy(true);
-    // Conversation UI is live; connect the separate galingtosh-engine before enabling generation.
-    setTimeout(() => { setMessages(m => [...m, { id: String(Date.now() + 1), role: 'assistant', text: "J'ai bien reçu ton idée. Le moteur de création Galingtosh sera relié ici pour transformer cette demande en projet de film. La génération n'est pas encore activée sur cette version." }]); setBusy(false); }, 450);
-  }
+export default function App(){
+ const [tab,setTab]=useState<Tab>('studio');
+ const [session,setSession]=useState<any>(null);
+ const [authReady,setAuthReady]=useState(false);
+ const [messages,setMessages]=useState<Message[]>([]);
+ const [draft,setDraft]=useState('');
+ const [busy,setBusy]=useState(false);
+ const [conversationId,setConversationId]=useState<string|null>(null);
+ const [activeProjectId,setActiveProjectId]=useState<string|null>(null);
+ const [projects,setProjects]=useState<Project[]>([]);
+ const [assets,setAssets]=useState<Asset[]>([]);
+ const [attachments,setAttachments]=useState<Attachment[]>([]);
+ const [film,setFilm]=useState<FilmDocument|null>(null);
+ const [filmVisible,setFilmVisible]=useState(false);
+ const [job,setJob]=useState<RenderJob|null>(null);
+ const [jobs,setJobs]=useState<RenderJob[]>([]);
+ const [projectModal,setProjectModal]=useState(false);
+ const [projectTitle,setProjectTitle]=useState('');
+ const [projectBrief,setProjectBrief]=useState('');
+ const [savingProject,setSavingProject]=useState(false);
+ const [email,setEmail]=useState('');
+ const [password,setPassword]=useState('');
+ const [authMode,setAuthMode]=useState<'login'|'signup'>('login');
+ const [authBusy,setAuthBusy]=useState(false);
+ const [engineStatus,setEngineStatus]=useState('Vérification…');
+ const [engineBusy,setEngineBusy]=useState(false);
+ const [pageError,setPageError]=useState('');
 
-  return <SafeAreaView style={s.safe} edges={['top','left','right']}><ExpoStatusBar style="light"/><StatusBar barStyle="light-content" backgroundColor="#080611"/>
-    <LinearGradient colors={['#080611','#090713','#07050D']} style={StyleSheet.absoluteFill}/>
-    <View pointerEvents="none" style={s.glowTop}/><View pointerEvents="none" style={s.glowBottom}/>
-    <View style={s.header}>
-      <Pressable style={s.brand} onPress={() => setDrawer(true)}><View style={s.brandIcon}><Ionicons name="film" size={25} color="#FFF"/></View><Text style={s.brandName}>{title}</Text></Pressable>
-      <Pressable style={s.headerButton} onPress={() => setScreen('settings')}><Ionicons name="settings-outline" size={23} color="#E6DFFF"/></Pressable>
-    </View>
+ const user=session?.user;
+ const activeProject=useMemo(()=>projects.find(p=>p.id===activeProjectId)||null,[projects,activeProjectId]);
 
-    {screen === 'chat' ? <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={8}>
-      <ScrollView style={s.flex} contentContainerStyle={[s.chatContent, greeting && s.centerContent]} keyboardShouldPersistTaps="handled">
-        {greeting ? <View style={s.welcome}>
-          <View style={s.heroMark}><LinearGradient colors={['#5C35FF','#C34BFF','#FF8C9B']} style={s.heroGradient}><Ionicons name="film" size={66} color="#FFF"/></LinearGradient></View>
-          <Text style={s.welcomeText}>Posez votre question à Galingtosh...</Text>
-          <View style={s.suggestions}>{suggestions.map((item,i)=><Pressable key={i} style={s.suggestion} onPress={()=>send(item)}><Ionicons name="sparkles-outline" size={16} color="#B89BFF"/><Text style={s.suggestionText}>{item}</Text><Ionicons name="arrow-up" size={16} color="#A99ACB"/></Pressable>)}</View>
-        </View> : <View style={s.messages}>{messages.map(m=><View key={m.id} style={[s.message,m.role==='user'?s.userMessage:s.assistantMessage]}><Text style={s.messageRole}>{m.role==='user'?'VOUS':'GALINGTOSH'}</Text><Text style={s.messageText}>{m.text}</Text></View>)}{busy&&<Text style={s.typing}>Galingtosh prépare une réponse…</Text>}</View>}
-      </ScrollView>
-      <View style={s.composer}><Pressable style={s.attach}><Ionicons name="attach-outline" size={25} color="#C7B8E7"/></Pressable><TextInput value={draft} onChangeText={setDraft} placeholder="Écrivez votre message..." placeholderTextColor="#9186A9" style={s.input} multiline maxLength={4000} onSubmitEditing={()=>send()}/><Pressable style={s.send} onPress={()=>send()} disabled={!draft.trim()||busy}><LinearGradient colors={['#8B36FF','#5C20E8']} style={s.sendGradient}><Ionicons name="send" size={21} color="#FFF"/></LinearGradient></Pressable></View>
-    </KeyboardAvoidingView> : screen === 'library' ? <View style={s.page}><View style={s.emptyIcon}><Ionicons name="film-outline" size={34} color="#B69AFF"/></View><Text style={s.pageTitle}>Vos créations, au même endroit</Text><Text style={s.pageSub}>Les films et projets que vous créerez apparaîtront ici.</Text></View> : <View style={s.page}><Text style={s.sectionLabel}>COMPTE</Text><Pressable style={s.settingRow}><View style={s.rowIcon}><Ionicons name="person-circle-outline" size={22} color="#C6AEFF"/></View><View style={s.rowText}><Text style={s.rowTitle}>Connexion</Text><Text style={s.rowSub}>Google et e-mail seront disponibles</Text></View><Ionicons name="chevron-forward" size={18} color="#827794"/></Pressable><Text style={[s.sectionLabel,{marginTop:28}]}>APPLICATION</Text><Pressable style={s.settingRow}><View style={s.rowIcon}><Ionicons name="information-circle-outline" size={22} color="#C6AEFF"/></View><View style={s.rowText}><Text style={s.rowTitle}>À propos de Galingtosh</Text><Text style={s.rowSub}>Version 1.0.0</Text></View></Pressable></View>}
+ useEffect(()=>{
+  if(!supabaseConfigured){setAuthReady(true);return;}
+  supabase.auth.getSession().then(({data})=>{setSession(data.session);setAuthReady(true);}).catch(()=>setAuthReady(true));
+  const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,next)=>setSession(next));
+  return ()=>subscription.unsubscribe();
+ },[]);
 
-    <Modal visible={drawer} transparent animationType="fade" onRequestClose={()=>setDrawer(false)}><View style={s.modalRoot}><Pressable style={s.scrim} onPress={()=>setDrawer(false)}/><View style={s.drawer}><View style={s.drawerHeader}><View style={s.brandIcon}><Ionicons name="film" size={24} color="#FFF"/></View><Text style={s.drawerBrand}>Galingtosh</Text><Pressable onPress={()=>setDrawer(false)} style={s.close}><Ionicons name="close" size={22} color="#CFC4E8"/></Pressable></View><Pressable style={s.newButton} onPress={newChat}><Ionicons name="add" size={21} color="#FFF"/><Text style={s.newButtonText}>Nouvelle conversation</Text></Pressable><Text style={s.sectionLabel}>ESPACE DE TRAVAIL</Text><Pressable style={s.navRow} onPress={()=>{setScreen('library');setDrawer(false)}}><Ionicons name="albums-outline" size={21} color="#C6B4E8"/><Text style={s.navText}>Bibliothèque</Text></Pressable><Pressable style={s.navRow} onPress={()=>{setScreen('settings');setDrawer(false)}}><Ionicons name="settings-outline" size={21} color="#C6B4E8"/><Text style={s.navText}>Paramètres</Text></Pressable><Text style={[s.sectionLabel,{marginTop:30}]}>RÉCENT</Text>{history.length?history.map((h,i)=><Pressable key={i} style={s.navRow} onPress={()=>{setScreen('chat');setDrawer(false)}}><Ionicons name="chatbubble-outline" size={18} color="#9C8CB8"/><Text numberOfLines={1} style={s.navText}>{h}</Text></Pressable>):<Text style={s.noHistory}>Aucune conversation récente</Text>}<View style={s.drawerFooter}><Text style={s.footerText}>L'imagination prend forme.</Text></View></View></View></Modal>
-    <View style={s.bottomSafe}/>
-  </SafeAreaView>;
+ const loadProjects=useCallback(async()=>{
+  if(!user)return;
+  const {data,error}=await supabase.from('projects').select('id,titre,brief,format,statut,version,duree_cible').order('id',{ascending:false}).limit(50);
+  if(error){setPageError(error.message);return;}
+  setProjects((data||[]) as Project[]);
+ },[user?.id]);
+
+ const loadAssets=useCallback(async()=>{
+  if(!user)return;
+  const {data,error}=await supabase.from('media_assets').select('id,type,source_kind,titre,provenance,licence,licence_ok,duree,proxy_url,score,fiche,utilisation').order('score',{ascending:false}).limit(80);
+  if(error){setPageError(error.message);return;}
+  setAssets((data||[]) as Asset[]);
+ },[user?.id]);
+
+ const loadJobs=useCallback(async(projectId?:string)=>{
+  if(!user)return;
+  try{setJobs(await listRenderJobs(projectId));}catch(e:any){setPageError(e.message||'Impossible de charger les rendus.');}
+ },[user?.id]);
+
+ useEffect(()=>{if(user){loadProjects();loadAssets();loadJobs();}else{setProjects([]);setAssets([]);setJobs([]);setActiveProjectId(null);}},[user?.id,loadProjects,loadAssets,loadJobs]);
+
+ useEffect(()=>{
+  if(!job||!['queued','running'].includes(job.status))return;
+  const timer=setInterval(async()=>{try{const next=await getRenderJob(job.id);setJob(next);if(!['queued','running'].includes(next.status)){loadJobs(activeProjectId||undefined);}}catch{}},5000);
+  return ()=>clearInterval(timer);
+ },[job?.id,job?.status,activeProjectId,loadJobs]);
+
+ async function signIn(){
+  if(!supabaseConfigured){Alert.alert('Configuration Supabase requise','La clé publique anon/publishable du projet doit être ajoutée au build.');return;}
+  if(!email.trim()||!password){Alert.alert('Champs manquants','Saisissez votre e-mail et votre mot de passe.');return;}
+  setAuthBusy(true);
+  try{
+   const result=authMode==='login'?await supabase.auth.signInWithPassword({email:email.trim(),password}):await supabase.auth.signUp({email:email.trim(),password,options:{emailRedirectTo:REDIRECT}});
+   if(result.error)throw result.error;
+   if(authMode==='signup'&&!result.data.session)Alert.alert('Vérifiez votre e-mail','Un lien de confirmation vient de vous être envoyé.');
+   else Alert.alert('Connexion réussie','Votre session Galingtosh est active.');
+  }catch(e:any){Alert.alert('Authentification impossible',e.message||'Erreur inconnue.');}
+  finally{setAuthBusy(false);}
+ }
+
+ async function googleAuth(){
+  if(!supabaseConfigured){Alert.alert('Configuration Supabase requise','Ajoutez la clé publique du projet avant la connexion Google.');return;}
+  setAuthBusy(true);
+  try{
+   const {data,error}=await supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo:REDIRECT,skipBrowserRedirect:true}});
+   if(error)throw error;if(!data.url)throw new Error("URL OAuth Google absente.");
+   const result=await WebBrowser.openAuthSessionAsync(data.url,REDIRECT);
+   if(result.type==='success'&&result.url){
+    const callback=new URL(result.url);const code=callback.searchParams.get('code');
+    if(code){const exchanged=await supabase.auth.exchangeCodeForSession(code);if(exchanged.error)throw exchanged.error;}
+    else{const params=new URLSearchParams(callback.hash.replace(/^#/,''));
+     const access_token=params.get('access_token');const refresh_token=params.get('refresh_token');
+     if(access_token&&refresh_token){const saved=await supabase.auth.setSession({access_token,refresh_token});if(saved.error)throw saved.error;}
+     else throw new Error("Le retour Google ne contient pas de code d'authentification.");
+    }
+   }
+  }catch(e:any){Alert.alert('Connexion Google impossible',e.message||'Vérifiez que Google est activé dans Supabase Auth.');}
+  finally{setAuthBusy(false);}
+ }
+
+ async function resetPassword(){
+  if(!supabaseConfigured||!email.trim()){Alert.alert('E-mail requis','Saisissez votre adresse e-mail.');return;}
+  const {error}=await supabase.auth.resetPasswordForEmail(email.trim(),{redirectTo:REDIRECT});
+  Alert.alert(error?'Échec':'E-mail envoyé',error?.message||'Consultez votre boîte e-mail pour réinitialiser votre mot de passe.');
+ }
+
+ async function signOut(){await supabase.auth.signOut();setMessages([]);setConversationId(null);setFilm(null);}
+
+ async function createProject(){
+  if(!user||!projectTitle.trim())return;
+  setSavingProject(true);
+  try{
+   const {data,error}=await supabase.from('projects').insert({owner:user.id,titre:projectTitle.trim(),brief:projectBrief.trim()||null}).select('id,titre,brief,format,statut,version,duree_cible').single();
+   if(error)throw error;
+   setProjects(p=>[data as Project,...p]);setActiveProjectId(data.id);setProjectModal(false);setProjectTitle('');setProjectBrief('');setTab('studio');
+   setMessages([{id:String(Date.now()),role:'assistant',text:'Projet « '+data.titre+' » créé. Décris maintenant le film que tu souhaites réaliser.'}]);
+  }catch(e:any){Alert.alert('Création impossible',e.message||'Vérifiez la configuration de la base.');}
+  finally{setSavingProject(false);}
+ }
+
+ async function addAttachment(){
+  if(!user){Alert.alert('Connexion requise','Connectez-vous pour joindre un média.');return;}
+  try{
+   const picked=await DocumentPicker.getDocumentAsync({type:['image/*','video/*','audio/*'],copyToCacheDirectory:true,multiple:false});
+   if(picked.canceled||!picked.assets?.length)return;
+   const file=picked.assets[0];const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'_').slice(-100);
+   const path=user.id+'/'+Date.now()+'-'+safeName;
+   const response=await fetch(file.uri);const blob=await response.blob();
+   const {error}=await supabase.storage.from('user-uploads').upload(path,blob,{contentType:file.mimeType||'application/octet-stream',upsert:false});
+   if(error)throw error;
+   setAttachments(a=>[...a,{bucket:'user-uploads',path,name:file.name,mime_type:file.mimeType||'application/octet-stream'}]);
+  }catch(e:any){Alert.alert('Ajout du média impossible',e.message||'Vérifiez les autorisations du stockage.');}
+ }
+
+ async function sendMessage(){
+  const text=draft.trim();if((!text&&!attachments.length)||busy)return;
+  if(!supabaseConfigured||!user){Alert.alert('Connexion requise','Connectez-vous avec votre compte Galingtosh avant d’utiliser le Studio.');setTab('account');return;}
+  const attached=[...attachments];setMessages(m=>[...m,{id:String(Date.now()),role:'user',text:text||'Média joint',}]);
+  setDraft('');setAttachments([]);setBusy(true);
+  try{
+   const result=await sendToAgent(text||'Analyse les médias joints et aide-moi à préparer mon film.',activeProjectId,attached);
+   setMessages(m=>[...m,{id:String(Date.now()+1),role:'assistant',text:result.reply}]);
+   if(result.conversation_id)setConversationId(result.conversation_id);
+   if(result.project_id){setActiveProjectId(result.project_id);loadProjects();}
+   if(result.film_version&&result.project_id){
+    const {data,error}=await supabase.from('films').select('version,data').eq('project_id',result.project_id).eq('version',result.film_version).single();
+    if(!error&&data?.data){setFilm(data.data as FilmDocument);setFilmVisible(true);}
+   }
+   if(result.render_job_id){const next=await getRenderJob(result.render_job_id);setJob(next);loadJobs(result.project_id||activeProjectId||undefined);}
+  }catch(e:any){setMessages(m=>[...m,{id:String(Date.now()+2),role:'assistant',text:e.message||'Une erreur est survenue pendant le traitement.'}]);}
+  finally{setBusy(false);}
+ }
+
+ async function startRender(projectId:string){
+  try{setBusy(true);const queued=await requestRender(projectId);const next=await getRenderJob(queued.job_id);setJob(next);await loadJobs(projectId);Alert.alert('Rendu lancé','Votre film est dans la file de production.');}
+  catch(e:any){Alert.alert('Impossible de lancer le rendu',e.message||'Vérifiez que le projet possède une version Film JSON.');}
+  finally{setBusy(false);}
+ }
+
+ async function openRender(path?:string|null){
+  if(!path)return;
+  try{const url=await getRenderDownloadUrl(path);await Linking.openURL(url);}
+  catch(e:any){Alert.alert('Téléchargement impossible',e.message||'Le fichier n’est pas disponible.');}
+ }
+
+ async function checkEngine(){
+  setEngineBusy(true);setEngineStatus('Vérification…');
+  try{const response=await fetch(ENGINE+'/health');if(!response.ok)throw new Error('HTTP '+response.status);const data=await response.json();setEngineStatus(data.status==='ok'?'En ligne':'Réponse inattendue');}
+  catch{setEngineStatus('Indisponible ou en veille');}
+  finally{setEngineBusy(false);}
+ }
+ useEffect(()=>{checkEngine();},[]);
+
+ const screenTitle=tab==='studio'?'Studio':tab==='projects'?'Mes projets':tab==='media'?'Médiathèque':'Compte';
+
+ if(!authReady)return <SafeAreaProvider><SafeAreaView style={s.safe}><View style={s.loading}><BrandMark size={58}/><ActivityIndicator color={C.violet} style={{marginTop:20}}/><Text style={s.muted}>Initialisation de Galingtosh…</Text></View></SafeAreaView></SafeAreaProvider>;
+
+ return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top','left','right']}><ExpoStatusBar style="light"/><StatusBar barStyle="light-content" backgroundColor={C.bg}/>
+  <LinearGradient colors={['#080611','#090714','#07050D']} style={StyleSheet.absoluteFill}/>
+  <View pointerEvents="none" style={s.glowTop}/><View pointerEvents="none" style={s.glowBottom}/>
+  <View style={s.header}>
+   <Pressable style={s.brand} onPress={()=>setTab('studio')}><BrandMark/><View><Text style={s.brandName}>Galingtosh</Text><Text style={s.brandSub}>CRÉEZ · MONTEZ · PARTAGEZ</Text></View></Pressable>
+   <Pressable style={s.headerButton} onPress={()=>setTab('account')}><Feather name="settings" size={22} color={C.muted}/></Pressable>
+  </View>
+  {pageError? <Pressable onPress={()=>setPageError('')} style={s.errorBanner}><Text style={s.errorText}>{pageError}  ×</Text></Pressable>:null}
+  <View style={s.main}>
+   {tab==='studio'?<KeyboardAvoidingView style={s.flex} behavior={Platform.OS==='ios'?'padding':undefined}>
+    <ScrollView style={s.flex} contentContainerStyle={[s.chatContent,messages.length===0&&s.center]} keyboardShouldPersistTaps="handled">
+     {messages.length===0?<View style={s.welcome}>
+      <View style={s.heroOuter}><View style={s.heroGlow}/><LinearGradient colors={['#783BFF','#B84CEB','#F17BCB']} style={s.hero}><Ionicons name="film" size={58} color="#160C2D"/></LinearGradient></View>
+      <Text style={s.welcomeText}>Posez votre question{ '\n'}à Galingtosh...</Text><Text style={s.welcomeSub}>Imaginez. Décrivez. Réalisez.</Text>
+      <View style={s.suggestions}><Text style={s.sectionLabel}>POUR COMMENCER</Text>{['Prépare un documentaire à partir de mes médias','Aide-moi à construire un clip musical','Crée le scénario d’un court-métrage'].map((v,i)=><Pressable key={i} style={s.suggestion} onPress={()=>setDraft(v)}><Feather name="sparkles" size={16} color={C.violet}/><Text style={s.suggestionText}>{v}</Text><Feather name="arrow-up-right" size={15} color={C.dim}/></Pressable>)}</View>
+     </View>:<View style={s.messages}>{messages.map(m=><View key={m.id} style={[s.message,m.role==='user'?s.userMessage:s.assistantMessage]}><Text style={s.messageRole}>{m.role==='user'?'VOUS':'GALINGTOSH'}</Text><Text style={s.messageText}>{m.text}</Text></View>)}{busy?<View style={s.assistantMessage}><ActivityIndicator color={C.violet}/><Text style={[s.messageText,{marginTop:8}]}>Galingtosh analyse votre demande…</Text></View>:null}</View>}
+    </ScrollView>
+    {attachments.length>0?<ScrollView horizontal style={s.attachmentStrip}>{attachments.map(a=><Pressable key={a.path} style={s.attachmentChip} onPress={()=>setAttachments(v=>v.filter(x=>x.path!==a.path))}><Feather name="paperclip" size={13} color={C.violet}/><Text numberOfLines={1} style={s.attachmentName}>{a.name}</Text><Feather name="x" size={13} color={C.muted}/></Pressable>)}</ScrollView>:null}
+    <View style={s.composer}><Pressable style={s.attachButton} onPress={addAttachment}><Feather name="paperclip" size={23} color={C.muted}/></Pressable><TextInput value={draft} onChangeText={setDraft} placeholder="Écrivez votre message..." placeholderTextColor={C.dim} style={s.composerInput} multiline maxLength={5000}/><Pressable onPress={sendMessage} disabled={busy||(!draft.trim()&&!attachments.length)}><LinearGradient colors={['#8C43FF','#5D22E8']} style={s.sendButton}><Feather name="send" size={21} color="#FFF"/></LinearGradient></Pressable></View>
+    <Text style={s.disclaimer}>Galingtosh utilise vos médias et le moteur FFmpeg. Il ne génère pas d’images ni de vidéos artificielles.</Text>
+   </KeyboardAvoidingView>:null}
+   {tab==='projects'?<ScrollView contentContainerStyle={s.pageContent}>
+    <Text style={s.kicker}>VOTRE ESPACE DE TRAVAIL</Text><Text style={s.pageTitle}>Mes projets</Text><Text style={s.pageDesc}>Retrouvez vos productions et reprenez votre travail.</Text>
+    <Button title="Nouveau projet" onPress={()=>setProjectModal(true)} icon="plus"/>
+    {projects.length===0?<Panel style={s.emptyPanel}><Feather name="film" size={34} color={C.dim}/><Text style={s.cardTitle}>Aucun projet enregistré</Text><Text style={s.muted}>Vos projets apparaîtront ici après leur création.</Text></Panel>:projects.map(p=><Pressable key={p.id} onPress={()=>{setActiveProjectId(p.id);setTab('studio');}}><Panel style={s.projectCard}><View style={s.projectIcon}><Feather name="film" size={21} color={C.violet}/></View><View style={{flex:1}}><Text style={s.cardTitle}>{p.titre}</Text><Text style={s.cardSub}>{p.brief||'Aucune description'} · {p.statut||'Projet'}</Text><Text style={s.cardMeta}>Version {p.version??1} {p.format?'· '+p.format:''}</Text></View><Feather name="chevron-right" size={19} color={C.dim}/></Panel></Pressable>)}
+    {activeProject?<Panel style={s.renderPanel}><Text style={s.sectionLabel}>PRODUCTION</Text><Text style={s.cardTitle}>{activeProject.titre}</Text><Button title="Lancer le rendu vidéo" onPress={()=>startRender(activeProject.id)} loading={busy} icon="play"/>{job&&job.project_id===activeProject.id?<View style={s.jobBox}><Text style={s.cardSub}>Rendu : {job.status} · {job.progress||0}%</Text><View style={s.progressTrack}><View style={[s.progressFill,{width:(Math.max(0,Math.min(100,job.progress||0)))+'%'}]}/></View>{job.error?<Text style={s.errorText}>{job.error}</Text>:null}{job.output_path?<Button title="Ouvrir la vidéo MP4" onPress={()=>openRender(job.output_path)} secondary icon="download"/>:null}</View>:null}</Panel>:null}
+    <Text style={s.sectionLabel}>RENDU RÉCENT</Text>{jobs.slice(0,8).map(j=><Panel key={j.id} style={s.jobRow}><View style={{flex:1}}><Text style={s.cardTitle}>Production · v{j.film_version}</Text><Text style={s.cardSub}>{j.status} · {j.progress||0}%</Text></View>{j.output_path?<Pressable onPress={()=>openRender(j.output_path)}><Feather name="download" size={20} color={C.violet}/></Pressable>:null}</Panel>)}
+   </ScrollView>:null}
+   {tab==='media'?<ScrollView contentContainerStyle={s.pageContent}><Text style={s.kicker}>RESSOURCES AUTORISÉES</Text><Text style={s.pageTitle}>Médiathèque</Text><Text style={s.pageDesc}>Catalogue des médias disponibles et de leurs licences.</Text><Button title="Joindre un média à une conversation" onPress={()=>{setTab('studio');addAttachment();}} icon="paperclip"/>{assets.length===0?<Panel style={s.emptyPanel}><Feather name="image" size={32} color={C.dim}/><Text style={s.cardTitle}>Aucun média dans le catalogue</Text><Text style={s.muted}>Les médias autorisés apparaîtront ici lorsqu’ils seront référencés dans la base.</Text></Panel>:assets.map(a=><Panel key={a.id} style={s.assetCard}>{a.proxy_url&&a.type==='image'?<Image source={{uri:a.proxy_url}} style={s.assetImage}/>:<View style={s.assetIcon}><Feather name={a.type==='video'?'video':a.type==='audio'?'music':'image'} size={23} color={C.violet}/></View>}<View style={{flex:1}}><Text style={s.cardTitle}>{a.titre||'Média sans titre'}</Text><Text style={s.cardSub}>{a.type} · {a.source_kind}</Text><Text style={s.cardMeta}>{a.licence||'Licence non précisée'} · {a.licence_ok?'Utilisable':'À vérifier'}</Text></View><Text style={s.score}>{a.score??'—'}</Text></Panel>)}</ScrollView>:null}
+   {tab==='account'?<ScrollView contentContainerStyle={s.pageContent}><Text style={s.kicker}>PRÉFÉRENCES</Text><Text style={s.pageTitle}>Compte & paramètres</Text>
+    {!user?<Panel style={s.authPanel}><Text style={s.cardTitle}>{authMode==='login'?'Connexion à Galingtosh':'Créer un compte'}</Text><Text style={s.cardSub}>Utilisez votre adresse Gmail ou votre compte Google.</Text><Field value={email} onChangeText={setEmail} placeholder="Adresse e-mail" autoCapitalize="none" keyboardType="email-address" style={{marginTop:18}}/><Field value={password} onChangeText={setPassword} placeholder="Mot de passe" secureTextEntry style={{marginTop:10}}/><Button title={authMode==='login'?'Se connecter':'Créer mon compte'} onPress={signIn} loading={authBusy}/><Button title="Continuer avec Google" onPress={googleAuth} secondary loading={authBusy} icon="chrome"/><Pressable onPress={()=>setAuthMode(v=>v==='login'?'signup':'login')}><Text style={s.link}>{authMode==='login'?'Créer un compte':'J’ai déjà un compte'}</Text></Pressable>{authMode==='login'?<Pressable onPress={resetPassword}><Text style={s.forgot}>Mot de passe oublié ?</Text></Pressable>:null}<Text style={s.smallNote}>L’authentification utilise Supabase Auth. Le fournisseur Google doit être activé dans le tableau de bord Supabase.</Text></Panel>:<Panel style={s.authPanel}><View style={s.accountRow}><View style={s.avatar}><Text style={s.avatarText}>{(user.email||'G').slice(0,1).toUpperCase()}</Text></View><View style={{flex:1}}><Text style={s.cardTitle}>{user.email||'Compte Galingtosh'}</Text><Text style={s.cardSub}>Session authentifiée</Text></View></View><Button title="Se déconnecter" onPress={signOut} secondary icon="log-out"/></Panel>}
+    <Panel style={{marginTop:15}}><Text style={s.sectionLabel}>ÉTAT DES SERVICES</Text><View style={s.serviceRow}><Text style={s.cardSub}>Supabase</Text><Text style={[s.serviceValue,{color:supabaseConfigured?C.green:C.amber}]}>{supabaseConfigured?'Clé configurée':'Clé publique manquante'}</Text></View><View style={s.serviceRow}><Text style={s.cardSub}>Moteur de rendu</Text><Text style={[s.serviceValue,{color:engineStatus==='En ligne'?C.green:C.amber}]}>{engineStatus}</Text></View><Button title="Vérifier le moteur" onPress={checkEngine} loading={engineBusy} secondary icon="refresh-cw"/></Panel>
+    <Text style={s.footer}>GALINGTOSH · ANDROID{ '\n'}Une création Dan Production</Text>
+   </ScrollView>:null}
+  </View>
+  <View style={s.nav}>{([{id:'studio',label:'Studio',icon:'message-circle'},{id:'projects',label:'Projets',icon:'film'},{id:'media',label:'Médias',icon:'grid'},{id:'account',label:'Compte',icon:'user'}] as const).map(item=><Pressable key={item.id} onPress={()=>setTab(item.id)} style={s.navItem}><Feather name={item.icon as any} size={20} color={tab===item.id?C.violet:C.dim}/><Text style={[s.navText,tab===item.id&&{color:C.text}]}>{item.label}</Text>{tab===item.id?<View style={s.navIndicator}/>:null}</Pressable>)}</View>
+
+  <Modal visible={projectModal} transparent animationType="fade" onRequestClose={()=>setProjectModal(false)}><View style={s.modalRoot}><Pressable style={s.scrim} onPress={()=>setProjectModal(false)}/><View style={s.modalCard}><Text style={s.cardTitle}>Créer un projet</Text><Text style={s.cardSub}>Définissez le titre et l’idée de départ.</Text><Field value={projectTitle} onChangeText={setProjectTitle} placeholder="Titre du projet" style={{marginTop:18}}/><Field value={projectBrief} onChangeText={setProjectBrief} placeholder="Décrivez brièvement votre idée…" multiline style={{marginTop:10,minHeight:90}}/><Button title="Créer le projet" onPress={createProject} loading={savingProject} disabled={!projectTitle.trim()}/><Button title="Annuler" onPress={()=>setProjectModal(false)} secondary/></View></View></Modal>
+
+  <Modal visible={filmVisible} animationType="slide" onRequestClose={()=>setFilmVisible(false)}><SafeAreaView style={s.filmModal}><View style={s.modalHeader}><Text style={s.cardTitle}>Film JSON · aperçu</Text><Pressable onPress={()=>setFilmVisible(false)}><Feather name="x" size={23} color={C.text}/></Pressable></View><ScrollView><Text style={s.filmJson}>{film?JSON.stringify(film,null,2):''}</Text></ScrollView><Text style={s.smallNote}>Document reçu du service chat-agent. Le rendu vidéo est confié au moteur Galingtosh Engine.</Text></SafeAreaView></Modal>
+ </SafeAreaView></SafeAreaProvider>;
 }
 
-const s=StyleSheet.create({safe:{flex:1,backgroundColor:'#080611'},flex:{flex:1},header:{height:68,paddingHorizontal:22,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},brand:{flexDirection:'row',alignItems:'center',gap:12},brandIcon:{width:42,height:42,borderRadius:15,backgroundColor:'#26134C',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'#7543C9'},brandName:{fontSize:22,fontWeight:'700',color:'#FFF',letterSpacing:-.4},headerButton:{width:48,height:48,borderRadius:24,backgroundColor:'#171127',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'#2A2041'},glowTop:{position:'absolute',width:330,height:330,borderRadius:180,backgroundColor:'#43118D',opacity:.16,top:-215,right:-115},glowBottom:{position:'absolute',width:300,height:300,borderRadius:180,backgroundColor:'#3D16A0',opacity:.12,bottom:-190,left:-170},chatContent:{flexGrow:1,paddingHorizontal:22,paddingTop:18,paddingBottom:18},centerContent:{justifyContent:'center'},welcome:{alignItems:'center',width:'100%'},heroMark:{width:172,height:172,borderRadius:86,backgroundColor:'#171027',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'#34234E',marginBottom:34,shadowColor:'#8A37FF',shadowOpacity:.28,shadowRadius:28,elevation:10},heroGradient:{width:116,height:116,borderRadius:58,alignItems:'center',justifyContent:'center'},welcomeText:{fontSize:23,lineHeight:33,color:'#D4C9E9',fontWeight:'400',textAlign:'center',maxWidth:310},suggestions:{width:'100%',gap:9,marginTop:30},suggestion:{minHeight:50,borderRadius:15,borderWidth:1,borderColor:'#302443',backgroundColor:'#100C1B',paddingHorizontal:14,flexDirection:'row',alignItems:'center',gap:10},suggestionText:{color:'#C7BBDD',fontSize:13,flex:1},composer:{marginHorizontal:18,marginBottom:12,minHeight:68,borderRadius:36,borderWidth:1.5,borderColor:'#51416A',backgroundColor:'#151020',flexDirection:'row',alignItems:'center',paddingHorizontal:12,gap:7},attach:{width:38,height:44,alignItems:'center',justifyContent:'center'},input:{flex:1,color:'#FFF',fontSize:15,maxHeight:110,paddingVertical:13},send:{width:48,height:48,borderRadius:24,overflow:'hidden'},sendGradient:{flex:1,alignItems:'center',justifyContent:'center'},messages:{gap:14,paddingBottom:20},message:{maxWidth:'88%',padding:15,borderRadius:18},userMessage:{alignSelf:'flex-end',backgroundColor:'#34205B',borderBottomRightRadius:5},assistantMessage:{alignSelf:'flex-start',backgroundColor:'#151020',borderWidth:1,borderColor:'#302443',borderBottomLeftRadius:5},messageRole:{fontSize:10,letterSpacing:1.4,color:'#B99AFF',fontWeight:'700',marginBottom:7},messageText:{fontSize:15,lineHeight:23,color:'#F1ECFA'},typing:{color:'#A99ABD',fontSize:13,marginLeft:5},page:{flex:1,padding:26,justifyContent:'center'},emptyIcon:{width:76,height:76,borderRadius:24,backgroundColor:'#21143B',alignItems:'center',justifyContent:'center',alignSelf:'center',marginBottom:22},pageTitle:{fontSize:22,fontWeight:'700',color:'#FFF',textAlign:'center'},pageSub:{fontSize:14,lineHeight:22,color:'#A99DBB',textAlign:'center',marginTop:10,maxWidth:290,alignSelf:'center'},sectionLabel:{fontSize:10,letterSpacing:1.7,color:'#817492',fontWeight:'700',marginBottom:13,marginTop:14},settingRow:{flexDirection:'row',alignItems:'center',paddingVertical:14,borderBottomWidth:1,borderBottomColor:'#241C32',gap:13},rowIcon:{width:40,height:40,borderRadius:13,backgroundColor:'#201532',alignItems:'center',justifyContent:'center'},rowText:{flex:1},rowTitle:{fontSize:15,color:'#F0EAF9',fontWeight:'600'},rowSub:{fontSize:12,color:'#9589A8',marginTop:4},modalRoot:{flex:1,flexDirection:'row'},scrim:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(0,0,0,.66)'},drawer:{width:'82%',maxWidth:340,backgroundColor:'#0D0917',paddingHorizontal:20,paddingTop:26,borderRightWidth:1,borderRightColor:'#39265A'},drawerHeader:{flexDirection:'row',alignItems:'center',gap:11,marginBottom:28},drawerBrand:{fontSize:20,color:'#FFF',fontWeight:'700',flex:1},close:{padding:8},newButton:{height:50,borderRadius:15,backgroundColor:'#6E2FE4',flexDirection:'row',alignItems:'center',justifyContent:'center',gap:9,marginBottom:22},newButtonText:{color:'#FFF',fontSize:14,fontWeight:'700'},navRow:{height:48,flexDirection:'row',alignItems:'center',gap:14,paddingHorizontal:8},navText:{fontSize:14,color:'#D6CDE5',flex:1},noHistory:{fontSize:12,color:'#786D89',paddingHorizontal:8,paddingVertical:10},drawerFooter:{marginTop:'auto',paddingVertical:24,borderTopWidth:1,borderTopColor:'#261D35'},footerText:{fontSize:12,color:'#8E7EA8',textAlign:'center'},bottomSafe:{height:4}});
+const s=StyleSheet.create({
+ safe:{flex:1,backgroundColor:C.bg},flex:{flex:1},main:{flex:1},header:{height:70,paddingHorizontal:21,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},brand:{flexDirection:'row',alignItems:'center',gap:11},brandName:{fontSize:21,fontWeight:'800',color:C.text,letterSpacing:-.4},brandSub:{fontSize:8,color:C.dim,fontWeight:'800',letterSpacing:1.25,marginTop:3},headerButton:{width:44,height:44,borderRadius:22,backgroundColor:C.surface2,borderWidth:1,borderColor:C.border,alignItems:'center',justifyContent:'center'},glowTop:{position:'absolute',width:320,height:320,borderRadius:180,backgroundColor:'#5417A5',opacity:.17,top:-220,right:-130},glowBottom:{position:'absolute',width:330,height:330,borderRadius:180,backgroundColor:'#3613A0',opacity:.14,bottom:-220,left:-190},errorBanner:{marginHorizontal:16,backgroundColor:'#391A2A',padding:9,borderRadius:10},errorText:{color:C.red,fontSize:11},loading:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:C.bg},muted:{color:C.muted,fontSize:12,marginTop:10},chatContent:{flexGrow:1,paddingHorizontal:19,paddingTop:12,paddingBottom:20},center:{justifyContent:'center'},welcome:{alignItems:'center',width:'100%'},heroOuter:{width:160,height:160,borderRadius:80,alignItems:'center',justifyContent:'center',backgroundColor:'#171027',borderWidth:1,borderColor:'#382453',marginBottom:25},heroGlow:{position:'absolute',width:220,height:220,borderRadius:120,backgroundColor:'#6322B9',opacity:.13},hero:{width:112,height:112,borderRadius:56,alignItems:'center',justifyContent:'center'},welcomeText:{fontSize:24,lineHeight:34,color:'#D8CFF0',fontWeight:'400',textAlign:'center'},welcomeSub:{fontSize:12,color:C.dim,marginTop:9,letterSpacing:.5},suggestions:{width:'100%',marginTop:30,gap:9},sectionLabel:{fontSize:9,color:C.dim,fontWeight:'900',letterSpacing:1.45,marginBottom:11},suggestion:{minHeight:48,borderRadius:14,borderWidth:1,borderColor:C.border,backgroundColor:C.surface,flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:13},suggestionText:{flex:1,color:C.muted,fontSize:12},messages:{gap:12,paddingBottom:18},message:{maxWidth:'90%',padding:14,borderRadius:17},userMessage:{alignSelf:'flex-end',backgroundColor:'#34205D',borderBottomRightRadius:5},assistantMessage:{alignSelf:'flex-start',backgroundColor:C.surface,borderWidth:1,borderColor:C.border,borderBottomLeftRadius:5,padding:14},messageRole:{fontSize:9,color:C.violet,fontWeight:'900',letterSpacing:1.2,marginBottom:6},messageText:{fontSize:14,color:C.text,lineHeight:21},composer:{marginHorizontal:14,marginBottom:8,minHeight:66,maxHeight:130,borderRadius:35,borderWidth:1.5,borderColor:'#55456E',backgroundColor:'#151220',flexDirection:'row',alignItems:'center',paddingHorizontal:12,gap:8},attachButton:{width:38,height:45,alignItems:'center',justifyContent:'center'},composerInput:{flex:1,minHeight:45,maxHeight:105,color:C.text,fontSize:14,paddingVertical:10},sendButton:{width:46,height:46,borderRadius:24,alignItems:'center',justifyContent:'center'},disclaimer:{color:C.dim,fontSize:9,textAlign:'center',marginBottom:7,marginHorizontal:18},attachmentStrip:{maxHeight:39,marginHorizontal:15,marginBottom:6},attachmentChip:{height:32,borderRadius:16,backgroundColor:C.surface2,borderWidth:1,borderColor:C.border,flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:10,marginRight:7},attachmentName:{color:C.muted,fontSize:10,maxWidth:130},nav:{height:64,backgroundColor:'#0E0C18',borderTopWidth:1,borderTopColor:C.border,flexDirection:'row',alignItems:'center',justifyContent:'space-around'},navItem:{flex:1,height:'100%',alignItems:'center',justifyContent:'center',gap:4},navText:{fontSize:9,color:C.dim,fontWeight:'800'},navIndicator:{position:'absolute',top:0,width:25,height:2,borderRadius:2,backgroundColor:C.violet},pageContent:{padding:21,paddingBottom:42},kicker:{fontSize:9,color:C.violet,fontWeight:'900',letterSpacing:1.5,marginTop:9},pageTitle:{fontSize:29,color:C.text,fontWeight:'800',marginTop:7},pageDesc:{fontSize:13,color:C.muted,lineHeight:20,marginTop:7,marginBottom:22},button:{minHeight:48,borderRadius:15,backgroundColor:C.purple,paddingHorizontal:15,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:9,marginTop:9},buttonSecondary:{backgroundColor:C.surface2,borderWidth:1,borderColor:C.border},buttonText:{color:C.text,fontSize:13,fontWeight:'800'},panel:{backgroundColor:C.surface,borderWidth:1,borderColor:C.border,borderRadius:18,padding:15},emptyPanel:{alignItems:'center',paddingVertical:32,marginTop:20,gap:10},cardTitle:{fontSize:14,color:C.text,fontWeight:'800'},cardSub:{fontSize:11,color:C.muted,lineHeight:17,marginTop:4},cardMeta:{fontSize:9,color:C.dim,marginTop:5},projectCard:{flexDirection:'row',alignItems:'center',gap:12,marginTop:10},projectIcon:{width:43,height:43,borderRadius:13,backgroundColor:C.surface3,alignItems:'center',justifyContent:'center'},renderPanel:{marginTop:18,borderColor:'#49316F'},jobBox:{marginTop:12},progressTrack:{height:6,backgroundColor:C.surface3,borderRadius:4,marginTop:8,overflow:'hidden'},progressFill:{height:6,backgroundColor:C.violet,borderRadius:4},jobRow:{marginTop:8,flexDirection:'row',alignItems:'center'},assetCard:{marginTop:9,flexDirection:'row',alignItems:'center',gap:11},assetIcon:{width:42,height:42,borderRadius:13,backgroundColor:C.surface3,alignItems:'center',justifyContent:'center'},assetImage:{width:48,height:48,borderRadius:12,backgroundColor:C.surface3},score:{fontSize:11,color:C.violet,fontWeight:'900'},authPanel:{marginTop:10},field:{minHeight:49,borderRadius:14,borderWidth:1,borderColor:C.border,backgroundColor:C.surface2,paddingHorizontal:14,color:C.text,fontSize:14},multiline:{minHeight:100,paddingTop:12,textAlignVertical:'top'},link:{textAlign:'center',color:C.violet,fontWeight:'800',fontSize:12,marginTop:17},forgot:{textAlign:'center',color:C.muted,fontSize:11,marginTop:13},smallNote:{fontSize:10,color:C.dim,lineHeight:16,marginTop:13,textAlign:'center'},accountRow:{flexDirection:'row',alignItems:'center',gap:12,marginBottom:12},avatar:{width:44,height:44,borderRadius:22,backgroundColor:C.surface3,alignItems:'center',justifyContent:'center'},avatarText:{fontSize:17,color:C.violet,fontWeight:'900'},serviceRow:{flexDirection:'row',justifyContent:'space-between',paddingVertical:11,borderBottomWidth:1,borderBottomColor:C.border},serviceValue:{fontSize:11,fontWeight:'800'},footer:{fontSize:9,color:C.dim,textAlign:'center',letterSpacing:1.1,lineHeight:17,marginTop:25},modalRoot:{flex:1,justifyContent:'center',padding:20},scrim:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(0,0,0,.72)'},modalCard:{backgroundColor:C.surface,borderWidth:1,borderColor:C.border,borderRadius:22,padding:19},filmModal:{flex:1,backgroundColor:C.bg,padding:18},modalHeader:{height:50,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderBottomWidth:1,borderBottomColor:C.border},filmJson:{fontFamily:Platform.OS==='ios'?'Menlo':'monospace',fontSize:10,color:'#D6C9F2',lineHeight:16,paddingVertical:16}
+});
