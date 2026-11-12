@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { decode } from "base64-arraybuffer";
@@ -26,6 +26,17 @@ const kindFromMime = (mime: string): "image" | "video" | "audio" | null => {
   return null;
 };
 
+type SearchMediaResult = {
+  id?: string; title?: string; author?: string; license?: string; source?: string;
+  preview_url?: string; restrictions?: string[] | string; kind?: string; duration?: number;
+};
+
+const getSearchResults = (metadata: Record<string, unknown>): SearchMediaResult[] => {
+  const data = metadata.data as Record<string, unknown> | undefined;
+  const raw = metadata.results ?? data?.results ?? metadata.items;
+  return Array.isArray(raw) ? raw as SearchMediaResult[] : [];
+};
+
 const mimeFromExtension: Record<string, string> = {
   jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif",
   mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm",
@@ -46,7 +57,9 @@ export function ChatScreen({ onMenu, conversation, onConversation, onProject }: 
   const loadMessages = async (id: string) => {
     const { data, error } = await supabase.from("messages").select("*")
       .eq("conversation_id", id).order("created_at", { ascending: true });
-    if (!error) setMessages(((data ?? []) as Message[]).filter(m => m.role === "user" || m.role === "assistant"));
+    if (!error) setMessages(((data ?? []) as Message[]).filter(m =>
+      m.role === "user" || m.role === "assistant" || (m.role === "tool" && m.metadata?.kind === "search_media")
+    ));
   };
 
   useEffect(() => {
@@ -54,8 +67,26 @@ export function ChatScreen({ onMenu, conversation, onConversation, onProject }: 
       setMessages([]); setJob(null); setVideoUrl(null); setPendingAttachments([]);
       return;
     }
+    setJob(null);
+    setVideoUrl(null);
     void loadMessages(conversation.id);
   }, [conversation?.id]);
+
+  useEffect(() => {
+    if (!conversation?.project_id) return;
+    let active = true;
+    const restoreLatestRender = async () => {
+      const { data } = await supabase.from("render_jobs").select("*")
+        .eq("project_id", conversation.project_id)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (!active || !data) return;
+      const latest = data as RenderJob;
+      setJob(latest);
+      if (latest.status === "done" && latest.output_path) await loadFilmAndVideo(latest);
+    };
+    void restoreLatestRender();
+    return () => { active = false; };
+  }, [conversation?.id, conversation?.project_id]);
 
   useEffect(() => {
     if (!conversation?.id) return;
@@ -213,7 +244,31 @@ export function ChatScreen({ onMenu, conversation, onConversation, onProject }: 
     }
   };
 
-  const renderMessage = ({ item }: { item: Message }) => (
+  const renderMessage = ({ item }: { item: Message }) => {
+    if (item.role === "tool" && item.metadata?.kind === "search_media") {
+      const results = getSearchResults(item.metadata);
+      return (
+        <View style={{ marginBottom: 20 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            <Sparkles color={colors.violetBright} size={17} />
+            <Text style={{ color: colors.text, fontSize: 14, fontWeight: "650" }}>Médias trouvés</Text>
+          </View>
+          {results.map((result, index) => (
+            <View key={result.id || result.title || String(index)} style={{ flexDirection: "row", gap: 11, padding: 10, marginBottom: 8, borderRadius: 13, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}>
+              {result.preview_url ? <Image source={{ uri: result.preview_url }} style={{ width: 82, height: 68, borderRadius: 9, backgroundColor: colors.surfaceSoft }} resizeMode="cover" /> :
+                <View style={{ width: 82, height: 68, borderRadius: 9, backgroundColor: colors.surfaceSoft, alignItems: "center", justifyContent: "center" }}><Film color={colors.violetBright} size={24} /></View>}
+              <View style={{ flex: 1, justifyContent: "center" }}>
+                <Text numberOfLines={2} style={{ color: colors.text, fontSize: 13, fontWeight: "600" }}>{result.title || "Média sans titre"}</Text>
+                <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11, marginTop: 4 }}>{result.author || "Auteur non renseigné"} · {result.source || result.kind || "Média"}</Text>
+                <Text numberOfLines={2} style={{ color: colors.subtle, fontSize: 10, marginTop: 3 }}>Licence : {result.license || "À vérifier"}{result.restrictions ? " · " + (Array.isArray(result.restrictions) ? result.restrictions.join(", ") : result.restrictions) : ""}</Text>
+              </View>
+            </View>
+          ))}
+          {results.length === 0 && <Text style={{ color: colors.muted, fontSize: 12 }}>{item.content}</Text>}
+        </View>
+      );
+    }
+    return (
     <View style={{
       alignSelf: item.role === "user" ? "flex-end" : "stretch",
       maxWidth: item.role === "user" ? "88%" : "100%",
@@ -227,7 +282,8 @@ export function ChatScreen({ onMenu, conversation, onConversation, onProject }: 
       </View>}
       <Text selectable style={{ color: colors.text, fontSize: 15, lineHeight: 23 }}>{item.content}</Text>
     </View>
-  );
+    );
+  };
 
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
