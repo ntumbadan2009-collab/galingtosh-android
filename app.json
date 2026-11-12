@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Galingtosh",
+    "slug": "galingtosh",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "android": {
+      "package": "com.galingtosh.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#080611"
+      }
+    },
+    "plugins": [
+      "expo-linear-gradient"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
+    }
+  }
+}
