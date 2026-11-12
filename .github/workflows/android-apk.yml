@@ -27,10 +27,6 @@ jobs:
         run: npx tsc --noEmit
       - name: Validate Expo configuration
         run: npx expo config --type public
-      - name: Inspect Expo Android autolinking metadata
-        run: |
-          npx expo-modules-autolinking resolve --platform android > /tmp/expo-modules.json
-          node -e "const d=require('/tmp/expo-modules.json'); (d.modules||[]).forEach((m,i)=>console.log(i,m.packageName||m.name,JSON.stringify(m.projects||[])))"
       - name: Generate native Android project
         run: npx expo prebuild --platform android --no-install
       - name: Build debug APK
