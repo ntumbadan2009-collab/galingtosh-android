@@ -251,7 +251,7 @@ export function ChatScreen({ onMenu, conversation, onConversation, onProject }: 
         <View style={{ marginBottom: 20 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
             <Sparkles color={colors.violetBright} size={17} />
-            <Text style={{ color: colors.text, fontSize: 14, fontWeight: "650" }}>Médias trouvés</Text>
+            <Text style={{ color: colors.text, fontSize: 14, fontWeight: "600" }}>Médias trouvés</Text>
           </View>
           {results.map((result, index) => (
             <View key={result.id || result.title || String(index)} style={{ flexDirection: "row", gap: 11, padding: 10, marginBottom: 8, borderRadius: 13, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }}>
@@ -289,7 +289,7 @@ export function ChatScreen({ onMenu, conversation, onConversation, onProject }: 
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={{ height: 60, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: colors.border, gap: 14 }}>
         <Pressable onPress={onMenu} hitSlop={10}><Menu color={colors.text} size={24} /></Pressable>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 9, flex: 1 }}><BrandMark size={27} /><View><Text style={{ color: colors.text, fontSize: 17, fontWeight: "750" }}>Galingtosh</Text><Text style={{ color: colors.subtle, fontSize: 10, letterSpacing: 1.1 }}>STUDIO IA</Text></View></View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 9, flex: 1 }}><BrandMark size={27} /><View><Text style={{ color: colors.text, fontSize: 17, fontWeight: "700" }}>Galingtosh</Text><Text style={{ color: colors.subtle, fontSize: 10, letterSpacing: 1.1 }}>STUDIO IA</Text></View></View>
         <Pressable onPress={() => { setJob(null); setVideoUrl(null); setPendingAttachments([]); onConversation(null); }} hitSlop={10}
           style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: colors.surfaceSoft, alignItems: "center", justifyContent: "center" }}>
           <Plus color={colors.text} size={21} />
@@ -300,7 +300,7 @@ export function ChatScreen({ onMenu, conversation, onConversation, onProject }: 
           <View style={{ width: 118, height: 118, borderRadius: 42, backgroundColor: "#1A1030", borderWidth: 1, borderColor: "#56318C", alignItems: "center", justifyContent: "center", shadowColor: "#8B42FF", shadowOpacity: 0.25, shadowRadius: 28 }}>
             <BrandMark size={86} />
           </View>
-          <Text style={{ color: colors.text, fontSize: 24, fontWeight: "650", textAlign: "center", marginTop: 28 }}>Que souhaitez-vous créer ?</Text>
+          <Text style={{ color: colors.text, fontSize: 24, fontWeight: "600", textAlign: "center", marginTop: 28 }}>Que souhaitez-vous créer ?</Text>
           <Text style={{ color: colors.muted, fontSize: 14, textAlign: "center", marginTop: 10, lineHeight: 21 }}>Décrivez votre idée. Galingtosh s'occupe de la production.</Text>
           <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 9, marginTop: 25 }}>
             {["Un court-métrage", "Un documentaire", "Un clip musical"].map(value =>
