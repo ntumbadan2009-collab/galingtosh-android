@@ -33,11 +33,7 @@
   },
   "expo": {
     "autolinking": {
-      "android": {
-        "buildFromSource": [
-          ".*"
-        ]
-      }
+      "android": {}
     }
   }
 }
