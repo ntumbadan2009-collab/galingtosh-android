@@ -1,11 +1,16 @@
-import { createClient } from '@supabase/supabase-js';
+import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createClient } from '@supabase/supabase-js';
 
-const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-
-// Auth is prepared now; add the public Supabase key when the project is configured.
-export const isSupabaseConfigured = Boolean(url && anonKey && !url.includes('YOUR_PROJECT'));
-export const supabase = isSupabaseConfigured
-  ? createClient(url!, anonKey!, { auth: { storage: AsyncStorage, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false } })
-  : null;
+export const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://lmlwekcytivszlszmfvy.supabase.co';
+const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+export const supabaseConfigured = Boolean(anonKey && !anonKey.includes('YOUR_'));
+export const supabase = createClient(SUPABASE_URL, anonKey || 'missing-anon-key', {
+  auth: {
+    storage: AsyncStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+    flowType: 'pkce'
+  }
+});
