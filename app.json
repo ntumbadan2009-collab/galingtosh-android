@@ -13,9 +13,6 @@
         "backgroundColor": "#080611"
       }
     },
-    "plugins": [
-      "expo-linear-gradient"
-    ],
     "extra": {
       "eas": {
         "projectId": ""
