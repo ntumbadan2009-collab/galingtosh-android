@@ -23,14 +23,12 @@ jobs:
           java-version: '17'
       - name: Install JavaScript dependencies
         run: npm install --no-audit --no-fund
+      - name: Repair incomplete Expo Android publication metadata
+        run: node .github/scripts/patch-expo-publication.js
       - name: TypeScript check
         run: npx tsc --noEmit
       - name: Validate Expo configuration
         run: npx expo config --type public
-      - name: Inspect Expo module publications
-        run: |
-          npx expo-modules-autolinking resolve --platform android --json > /tmp/expo-modules.json
-          node -e "const d=require('/tmp/expo-modules.json'); (d.modules||[]).forEach((m,i)=>console.log(i,m.packageName,JSON.stringify(m.projects||[])))"
       - name: Generate native Android project
         run: npx expo prebuild --platform android --no-install
       - name: Build debug APK
