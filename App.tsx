@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Alert, StatusBar, View } from "react-native";
+import * as Linking from "expo-linking";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
@@ -22,6 +23,15 @@ export default function App() {
   const [active, setActive] = useState<Conversation | null>(null);
 
   useEffect(() => {
+    const handleAuthUrl = async (url: string) => {
+      const parsed = Linking.parse(url);
+      const code = typeof parsed.queryParams?.code === "string" ? parsed.queryParams.code : null;
+      if (!code) return;
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) Alert.alert("Confirmation impossible", "Le lien a expiré ou a déjà été utilisé. Demandez un nouveau lien.");
+    };
+    void Linking.getInitialURL().then(url => { if (url) void handleAuthUrl(url); });
+    const linkSubscription = Linking.addEventListener("url", event => { void handleAuthUrl(event.url); });
     let mounted = true;
     void supabase.auth.getSession().then(({ data }) => {
       if (mounted) { setSession(data.session); setReady(true); }
@@ -30,7 +40,7 @@ export default function App() {
       setSession(next);
       if (!next) { setActive(null); setConversations([]); setScreen("chat"); }
     });
-    return () => { mounted = false; subscription.unsubscribe(); };
+    return () => { mounted = false; subscription.unsubscribe(); linkSubscription.remove(); };
   }, []);
 
   const loadConversations = useCallback(async () => {
