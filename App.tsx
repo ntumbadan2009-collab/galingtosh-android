@@ -164,7 +164,7 @@ export default function App(){
   const attached=[...attachments];setMessages(m=>[...m,{id:String(Date.now()),role:'user',text:text||'Média joint',}]);
   setDraft('');setAttachments([]);setBusy(true);
   try{
-   const result=await sendToAgent(text||'Analyse les médias joints et aide-moi à préparer mon film.',activeProjectId,attached);
+   const result=await sendToAgent(text||'Analyse les médias joints et aide-moi à préparer mon film.',activeProjectId,attached,conversationId);
    setMessages(m=>[...m,{id:String(Date.now()+1),role:'assistant',text:result.reply}]);
    if(result.conversation_id)setConversationId(result.conversation_id);
    if(result.project_id){setActiveProjectId(result.project_id);loadProjects();}
