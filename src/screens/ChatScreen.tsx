@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { colors } from "@/theme/colors";
 import type { Conversation, Message, RenderJob, FilmData } from "@/types/database";
 import { VideoCard } from "@/components/VideoCard";
+import { BrandMark } from "@/components/BrandMark";
 
 type Props = {
   onMenu: () => void;
@@ -232,7 +233,7 @@ export function ChatScreen({ onMenu, conversation, onConversation, onProject }: 
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.background }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={{ height: 60, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderBottomColor: colors.border, gap: 14 }}>
         <Pressable onPress={onMenu} hitSlop={10}><Menu color={colors.text} size={24} /></Pressable>
-        <View style={{ flex: 1 }}><Text style={{ color: colors.text, fontSize: 17, fontWeight: "750" }}>Galingtosh</Text><Text style={{ color: colors.subtle, fontSize: 10, letterSpacing: 1.1 }}>STUDIO IA</Text></View>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 9, flex: 1 }}><BrandMark size={27} /><View><Text style={{ color: colors.text, fontSize: 17, fontWeight: "750" }}>Galingtosh</Text><Text style={{ color: colors.subtle, fontSize: 10, letterSpacing: 1.1 }}>STUDIO IA</Text></View></View>
         <Pressable onPress={() => { setJob(null); setVideoUrl(null); setPendingAttachments([]); onConversation(null); }} hitSlop={10}
           style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: colors.surfaceSoft, alignItems: "center", justifyContent: "center" }}>
           <Plus color={colors.text} size={21} />
@@ -241,7 +242,7 @@ export function ChatScreen({ onMenu, conversation, onConversation, onProject }: 
       {messages.length === 0 ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 30, paddingBottom: 38 }}>
           <View style={{ width: 118, height: 118, borderRadius: 42, backgroundColor: "#1A1030", borderWidth: 1, borderColor: "#56318C", alignItems: "center", justifyContent: "center", shadowColor: "#8B42FF", shadowOpacity: 0.25, shadowRadius: 28 }}>
-            <Clapperboard color={colors.violetBright} size={52} strokeWidth={1.3} />
+            <BrandMark size={86} />
           </View>
           <Text style={{ color: colors.text, fontSize: 24, fontWeight: "650", textAlign: "center", marginTop: 28 }}>Que souhaitez-vous créer ?</Text>
           <Text style={{ color: colors.muted, fontSize: 14, textAlign: "center", marginTop: 10, lineHeight: 21 }}>Décrivez votre idée. Galingtosh s'occupe de la production.</Text>
