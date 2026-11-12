@@ -7,16 +7,23 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "android": {
-      "package": "com.galingtosh.app",
-      "versionCode": 1,
+      "package": "com.danproduction.galingtosh",
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#080611"
       }
     },
-    "extra": {
-      "eas": {
-        "projectId": ""
-      }
-    }
+    "extra": {},
+    "scheme": "galingtosh",
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Galingtosh utilise les médias que vous choisissez pour vos projets.",
+          "cameraPermission": "Autoriser Galingtosh à prendre des médias pour vos projets."
+        }
+      ],
+      "expo-document-picker"
+    ]
   }
 }
