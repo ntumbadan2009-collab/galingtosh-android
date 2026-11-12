@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from "react-native";
-import { Mail, LockKeyhole, Chrome } from "lucide-react-native";
+import { Mail, LockKeyhole, Globe } from "lucide-react-native";
 import { BrandMark } from "@/components/BrandMark";
 import { colors } from "@/theme/colors";
 import { signInWithEmail, signInWithGoogle, signUpWithEmail } from "@/lib/auth";
@@ -46,7 +46,7 @@ export function AuthScreen() {
 
       <Pressable disabled={busy} onPress={() => run(signInWithGoogle)}
         style={{ height: 54, borderRadius: 15, borderWidth: 1, borderColor: colors.borderStrong, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12, backgroundColor: colors.surface, opacity: busy ? 0.6 : 1 }}>
-        <Chrome color={colors.text} size={20} /><Text style={{ color: colors.text, fontWeight: "600" }}>Continuer avec Google</Text>
+        <Globe color={colors.text} size={20} /><Text style={{ color: colors.text, fontWeight: "600" }}>Continuer avec Google</Text>
       </Pressable>
 
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 23 }}>
