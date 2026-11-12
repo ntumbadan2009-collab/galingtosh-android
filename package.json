@@ -15,7 +15,6 @@
     "expo": "~58.0.0",
     "expo-auth-session": "*",
     "expo-file-system": "*",
-    "expo-image-picker": "*",
     "expo-linking": "*",
     "expo-status-bar": "*",
     "expo-video": "*",
