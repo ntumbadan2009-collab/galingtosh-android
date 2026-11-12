@@ -82,7 +82,7 @@ export function LibraryScreen({ onBack, onOpenProject }: { onBack: () => void; o
                   <Film color={colors.violetBright} size={23} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "650", fontSize: 15 }}>{item.title}</Text>
+                  <Text numberOfLines={1} style={{ color: colors.text, fontWeight: "600", fontSize: 15 }}>{item.title}</Text>
                   <Text style={{ color: colors.muted, fontSize: 12, marginTop: 5 }}>{new Date(item.updated_at).toLocaleDateString("fr-FR")} · {item.versions.length} version(s)</Text>
                 </View>
                 <PlayCircle color={colors.muted} size={20} />
