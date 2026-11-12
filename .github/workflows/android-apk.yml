@@ -13,17 +13,21 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: "22.13"
           cache: npm
       - name: Install dependencies
         run: npm install
+      - name: Align Expo native modules
+        run: npx expo install --fix
+      - name: Validate Expo configuration
+        run: npx expo-doctor
       - name: TypeScript validation
         run: npx tsc --noEmit
       - name: Generate native Android project
