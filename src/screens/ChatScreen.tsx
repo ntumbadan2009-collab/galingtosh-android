@@ -127,14 +127,12 @@ export function ChatScreen({ onMenu, conversation, onConversation, onProject }: 
       if (pendingAttachments.length) body.attachments = pendingAttachments;
       const controller = new AbortController();
       const requestTimeout = setTimeout(() => controller.abort(), 125_000);
-      let response;
-      try {
-        response = await supabase.functions.invoke("chat-agent", { body, signal: controller.signal });
-      } finally {
-        clearTimeout(requestTimeout);
-        setThinking(false);
-      }
-      const { data, error } = response;
+      setThinking(true);
+      const { data, error } = await supabase.functions.invoke("chat-agent", { body, signal: controller.signal })
+        .finally(() => {
+          clearTimeout(requestTimeout);
+          setThinking(false);
+        });
       if (error) {
         let messageText = error.message;
         try {
@@ -159,7 +157,10 @@ export function ChatScreen({ onMenu, conversation, onConversation, onProject }: 
       await loadMessages(active.id);
     } catch (error) {
       setInput(message);
-      Alert.alert("Impossible d'envoyer", error instanceof Error ? error.message : "Une erreur est survenue.");
+      const messageText = error instanceof Error && (error.name === "AbortError" || error.message.toLowerCase().includes("abort"))
+        ? "La réponse prend plus de temps que prévu. Votre demande peut encore être en cours ; rouvrez cette conversation dans quelques instants."
+        : error instanceof Error ? error.message : "Une erreur est survenue.";
+      Alert.alert("Impossible d'envoyer", messageText);
     } finally {
       setBusy(false);
     }
