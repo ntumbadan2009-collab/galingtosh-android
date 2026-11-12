@@ -20,7 +20,7 @@
     "expo-status-bar": "*",
     "expo-video": "*",
     "expo-web-browser": "*",
-    "lucide-react-native": "^0.468.0",
+    "lucide-react-native": "^1.72.0",
     "react": "19.3.0",
     "react-native": "0.88.1",
     "react-native-url-polyfill": "^2.0.0",
