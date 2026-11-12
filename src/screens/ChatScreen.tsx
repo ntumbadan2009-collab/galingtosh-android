@@ -19,16 +19,23 @@ type Props = {
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const makeId = () => String(Date.now()) + "-" + Math.random().toString(36).slice(2, 11);
 const kindFromMime = (mime: string): "image" | "video" | "audio" | null => {
-  if (mime.startsWith("image/")) return "image";
-  if (mime.startsWith("video/")) return "video";
-  if (mime.startsWith("audio/")) return "audio";
+  if (["image/jpeg", "image/png", "image/webp", "image/gif"].includes(mime)) return "image";
+  if (["video/mp4", "video/quicktime", "video/webm"].includes(mime)) return "video";
+  if (["audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/ogg"].includes(mime)) return "audio";
   return null;
+};
+
+const mimeFromExtension: Record<string, string> = {
+  jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif",
+  mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm",
+  mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4", ogg: "audio/ogg"
 };
 
 export function ChatScreen({ onMenu, conversation, onConversation, onProject }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [thinking, setThinking] = useState(false);
   const [job, setJob] = useState<RenderJob | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [filmTitle, setFilmTitle] = useState("Votre production");
@@ -118,7 +125,16 @@ export function ChatScreen({ onMenu, conversation, onConversation, onProject }: 
       };
       if (active.project_id) body.project_id = active.project_id;
       if (pendingAttachments.length) body.attachments = pendingAttachments;
-      const { data, error } = await supabase.functions.invoke("chat-agent", { body });
+      const controller = new AbortController();
+      const requestTimeout = setTimeout(() => controller.abort(), 125_000);
+      let response;
+      try {
+        response = await supabase.functions.invoke("chat-agent", { body, signal: controller.signal });
+      } finally {
+        clearTimeout(requestTimeout);
+        setThinking(false);
+      }
+      const { data, error } = response;
       if (error) {
         let messageText = error.message;
         try {
@@ -164,11 +180,12 @@ export function ChatScreen({ onMenu, conversation, onConversation, onProject }: 
       if (!user) throw new Error("Votre session a expiré.");
       const uploaded: string[] = [];
       for (const asset of result.assets) {
-        const mime = asset.mimeType || "";
+        const extensionCandidate = asset.name.includes(".") ? asset.name.split(".").pop()!.toLowerCase() : "bin";
+        const extension = /^[a-z0-9]{1,8}$/.test(extensionCandidate) ? extensionCandidate : "bin";
+        const mime = asset.mimeType || mimeFromExtension[extension] || "";
         const kind = kindFromMime(mime);
-        if (!kind) continue;
+        if (!kind) throw new Error("Ce format de fichier n'est pas pris en charge.");
         if (asset.size && asset.size > MAX_UPLOAD_BYTES) throw new Error("Un fichier dépasse la limite de 50 Mo.");
-        const extension = asset.name.includes(".") ? asset.name.split(".").pop()!.toLowerCase() : "bin";
         const path = user.id + "/" + conversation.project_id + "/" + makeId() + "." + extension;
         const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
         const { error: uploadError } = await supabase.storage.from("user-uploads")
@@ -177,7 +194,10 @@ export function ChatScreen({ onMenu, conversation, onConversation, onProject }: 
         const { data, error } = await supabase.from("media_assets").insert({
           project_id: conversation.project_id, user_id: user.id, kind, source: "upload", storage_path: path
         }).select("id").single();
-        if (error) throw error;
+        if (error) {
+          await supabase.storage.from("user-uploads").remove([path]);
+          throw error;
+        }
         uploaded.push(data.id);
       }
       if (uploaded.length) {
@@ -237,6 +257,10 @@ export function ChatScreen({ onMenu, conversation, onConversation, onProject }: 
           contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 22, paddingBottom: 24 }}
           onContentSizeChange={() => list.current?.scrollToEnd({ animated: true })} />
       )}
+      {thinking && <View style={{ flexDirection: "row", alignItems: "center", gap: 9, paddingHorizontal: 20, paddingBottom: 12 }}>
+        <ActivityIndicator color={colors.violetBright} size="small" />
+        <Text style={{ color: colors.muted, fontSize: 12 }}>Galingtosh prépare votre production…</Text>
+      </View>}
       {job && <View style={{ marginHorizontal: 16, marginBottom: 10, padding: 14, borderRadius: 15, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
           {job.status === "done" ? <Film color={colors.success} size={18} /> : job.status === "failed" ? <X color={colors.danger} size={18} /> : <LoaderCircle color={colors.violetBright} size={18} />}
