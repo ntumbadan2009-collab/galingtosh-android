@@ -131,7 +131,7 @@ export default function App(){
   Alert.alert(error?'Échec':'E-mail envoyé',error?.message||'Consultez votre boîte e-mail pour réinitialiser votre mot de passe.');
  }
 
- async function signOut(){await supabase.auth.signOut();setMessages([]);setConversationId(null);setFilm(null);}
+ async function signOut(){await supabase.auth.signOut();setMessages([]);setConversationId(null);}
 
  async function createProject(){
   if(!user||!projectTitle.trim())return;
