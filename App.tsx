@@ -9,7 +9,6 @@ import * as WebBrowser from 'expo-web-browser';
 import {supabase,supabaseConfigured,SUPABASE_URL} from './src/lib/supabase';
 import {sendToAgent} from './src/lib/ai';
 import {getRenderDownloadUrl,getRenderJob,listRenderJobs,requestRender,RenderJob} from './src/lib/render';
-import {FilmDocument} from './src/types/film';
 
 WebBrowser.maybeCompleteAuthSession();
 type Tab='studio'|'projects'|'media'|'account';
@@ -38,8 +37,6 @@ export default function App(){
  const [projects,setProjects]=useState<Project[]>([]);
  const [assets,setAssets]=useState<Asset[]>([]);
  const [attachments,setAttachments]=useState<Attachment[]>([]);
- const [film,setFilm]=useState<FilmDocument|null>(null);
- const [filmVisible,setFilmVisible]=useState(false);
  const [job,setJob]=useState<RenderJob|null>(null);
  const [jobs,setJobs]=useState<RenderJob[]>([]);
  const [projectModal,setProjectModal]=useState(false);
@@ -71,7 +68,7 @@ export default function App(){
  const loadProjects=useCallback(async()=>{
   if(!user)return;
   const {data,error}=await supabase.from('projects').select('id,titre,brief,format,statut,version,duree_cible').order('id',{ascending:false}).limit(50);
-  if(error){setPageError(error.message);return;}
+  if(error){setPageError('Impossible de charger ces données pour le moment.');return;}
   setProjects((data||[]) as Project[]);
  },[user?.id]);
 
@@ -84,7 +81,7 @@ export default function App(){
 
  const loadJobs=useCallback(async(projectId?:string)=>{
   if(!user)return;
-  try{setJobs(await listRenderJobs(projectId));}catch(e:any){setPageError(e.message||'Impossible de charger les rendus.');}
+  try{setJobs(await listRenderJobs(projectId));}catch{setPageError('Impossible de charger les productions pour le moment.');}
  },[user?.id]);
 
  useEffect(()=>{if(user){loadProjects();loadAssets();loadJobs();}else{setProjects([]);setAssets([]);setJobs([]);setActiveProjectId(null);}},[user?.id,loadProjects,loadAssets,loadJobs]);
@@ -96,7 +93,7 @@ export default function App(){
  },[job?.id,job?.status,activeProjectId,loadJobs]);
 
  async function signIn(){
-  if(!supabaseConfigured){Alert.alert('Configuration Supabase requise','La clé publique anon/publishable du projet doit être ajoutée au build.');return;}
+  if(!supabaseConfigured){Alert.alert('Service temporairement indisponible','Veuillez réessayer ultérieurement.');return;}
   if(!email.trim()||!password){Alert.alert('Champs manquants','Saisissez votre e-mail et votre mot de passe.');return;}
   setAuthBusy(true);
   try{
@@ -104,12 +101,12 @@ export default function App(){
    if(result.error)throw result.error;
    if(authMode==='signup'&&!result.data.session)Alert.alert('Vérifiez votre e-mail','Un lien de confirmation vient de vous être envoyé.');
    else Alert.alert('Connexion réussie','Votre session Galingtosh est active.');
-  }catch(e:any){Alert.alert('Authentification impossible',e.message||'Erreur inconnue.');}
+  }catch(e:any){Alert.alert('Authentification impossible','Vérifiez vos identifiants puis réessayez.');}
   finally{setAuthBusy(false);}
  }
 
  async function googleAuth(){
-  if(!supabaseConfigured){Alert.alert('Configuration Supabase requise','Ajoutez la clé publique du projet avant la connexion Google.');return;}
+  if(!supabaseConfigured){Alert.alert('Service temporairement indisponible','Veuillez réessayer ultérieurement.');return;}
   setAuthBusy(true);
   try{
    const {data,error}=await supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo:REDIRECT,skipBrowserRedirect:true}});
@@ -124,7 +121,7 @@ export default function App(){
      else throw new Error("Le retour Google ne contient pas de code d'authentification.");
     }
    }
-  }catch(e:any){Alert.alert('Connexion Google impossible',e.message||'Vérifiez que Google est activé dans Supabase Auth.');}
+  }catch(e:any){Alert.alert('Connexion Google impossible','Veuillez réessayer ou utiliser la connexion par e-mail.');}
   finally{setAuthBusy(false);}
  }
 
@@ -144,7 +141,7 @@ export default function App(){
    if(error)throw error;
    setProjects(p=>[data as Project,...p]);setActiveProjectId(data.id);setProjectModal(false);setProjectTitle('');setProjectBrief('');setTab('studio');
    setMessages([{id:String(Date.now()),role:'assistant',text:'Projet « '+data.titre+' » créé. Décris maintenant le film que tu souhaites réaliser.'}]);
-  }catch(e:any){Alert.alert('Création impossible',e.message||'Vérifiez la configuration de la base.');}
+  }catch{Alert.alert('Création impossible','Veuillez réessayer dans quelques instants.');}
   finally{setSavingProject(false);}
  }
 
@@ -159,7 +156,7 @@ export default function App(){
    const {error}=await supabase.storage.from('user-uploads').upload(path,blob,{contentType:file.mimeType||'application/octet-stream',upsert:false});
    if(error)throw error;
    setAttachments(a=>[...a,{bucket:'user-uploads',path,name:file.name,mime_type:file.mimeType||'application/octet-stream'}]);
-  }catch(e:any){Alert.alert('Ajout du média impossible',e.message||'Vérifiez les autorisations du stockage.');}
+  }catch{Alert.alert('Ajout du média impossible','Vérifiez le fichier puis réessayez.');}
  }
 
  async function sendMessage(){
@@ -172,25 +169,21 @@ export default function App(){
    setMessages(m=>[...m,{id:String(Date.now()+1),role:'assistant',text:result.reply}]);
    if(result.conversation_id)setConversationId(result.conversation_id);
    if(result.project_id){setActiveProjectId(result.project_id);loadProjects();}
-   if(result.film_version&&result.project_id){
-    const {data,error}=await supabase.from('films').select('version,data').eq('project_id',result.project_id).eq('version',result.film_version).single();
-    if(!error&&data?.data){setFilm(data.data as FilmDocument);setFilmVisible(true);}
-   }
    if(result.render_job_id){const next=await getRenderJob(result.render_job_id);setJob(next);loadJobs(result.project_id||activeProjectId||undefined);}
-  }catch(e:any){setMessages(m=>[...m,{id:String(Date.now()+2),role:'assistant',text:e.message||'Une erreur est survenue pendant le traitement.'}]);}
+  }catch{setMessages(m=>[...m,{id:String(Date.now()+2),role:'assistant',text:'Une erreur est survenue pendant le traitement. Veuillez réessayer.'}]);}
   finally{setBusy(false);}
  }
 
  async function startRender(projectId:string){
   try{setBusy(true);const queued=await requestRender(projectId);const next=await getRenderJob(queued.job_id);setJob(next);await loadJobs(projectId);Alert.alert('Rendu lancé','Votre film est dans la file de production.');}
-  catch(e:any){Alert.alert('Impossible de lancer le rendu',e.message||'Vérifiez que le projet possède une version Film JSON.');}
+  catch{Alert.alert('Impossible de lancer la production','Veuillez réessayer dans quelques instants.');}
   finally{setBusy(false);}
  }
 
  async function openRender(path?:string|null){
   if(!path)return;
   try{const url=await getRenderDownloadUrl(path);await Linking.openURL(url);}
-  catch(e:any){Alert.alert('Téléchargement impossible',e.message||'Le fichier n’est pas disponible.');}
+  catch{Alert.alert('Téléchargement impossible','La vidéo n’est pas disponible pour le moment.');}
  }
 
  const screenTitle=tab==='studio'?'Studio':tab==='projects'?'Mes projets':tab==='media'?'Médiathèque':'Compte';
@@ -216,13 +209,12 @@ export default function App(){
     </ScrollView>
     {attachments.length>0?<ScrollView horizontal style={s.attachmentStrip}>{attachments.map(a=><Pressable key={a.path} style={s.attachmentChip} onPress={()=>setAttachments(v=>v.filter(x=>x.path!==a.path))}><Feather name="paperclip" size={13} color={C.violet}/><Text numberOfLines={1} style={s.attachmentName}>{a.name}</Text><Feather name="x" size={13} color={C.muted}/></Pressable>)}</ScrollView>:null}
     <View style={s.composer}><Pressable style={s.attachButton} onPress={addAttachment} accessibilityRole="button" accessibilityLabel="Joindre un média"><Feather name="paperclip" size={23} color={C.muted}/></Pressable><TextInput value={draft} onChangeText={setDraft} placeholder="Écrivez votre message..." placeholderTextColor={C.dim} style={s.composerInput} multiline maxLength={5000} blurOnSubmit={false} returnKeyType="default" textAlignVertical="center" scrollEnabled/><Pressable onPress={sendMessage} disabled={busy||(!draft.trim()&&!attachments.length)} accessibilityRole="button" accessibilityLabel="Envoyer le message"><LinearGradient colors={['#8C43FF','#5D22E8']} style={s.sendButton}><Feather name="send" size={21} color="#FFF"/></LinearGradient></Pressable></View>
-    <Text style={s.disclaimer}>Galingtosh utilise vos médias et le moteur FFmpeg. Il ne génère pas d’images ni de vidéos artificielles.</Text>
-   </KeyboardAvoidingView>:null}
+     </KeyboardAvoidingView>:null}
    {tab==='projects'?<ScrollView contentContainerStyle={s.pageContent}>
     <Text style={s.kicker}>VOTRE ESPACE DE TRAVAIL</Text><Text style={s.pageTitle}>Mes projets</Text><Text style={s.pageDesc}>Retrouvez vos productions et reprenez votre travail.</Text>
     <Button title="Nouveau projet" onPress={()=>setProjectModal(true)} icon="plus"/>
     {projects.length===0?<Panel style={s.emptyPanel}><Feather name="film" size={34} color={C.dim}/><Text style={s.cardTitle}>Aucun projet enregistré</Text><Text style={s.muted}>Vos projets apparaîtront ici après leur création.</Text></Panel>:projects.map(p=><Pressable key={p.id} onPress={()=>{setActiveProjectId(p.id);setTab('studio');}}><Panel style={s.projectCard}><View style={s.projectIcon}><Feather name="film" size={21} color={C.violet}/></View><View style={{flex:1}}><Text style={s.cardTitle}>{p.titre}</Text><Text style={s.cardSub}>{p.brief||'Aucune description'} · {p.statut||'Projet'}</Text><Text style={s.cardMeta}>Version {p.version??1} {p.format?'· '+p.format:''}</Text></View><Feather name="chevron-right" size={19} color={C.dim}/></Panel></Pressable>)}
-    {activeProject?<Panel style={s.renderPanel}><Text style={s.sectionLabel}>PRODUCTION</Text><Text style={s.cardTitle}>{activeProject.titre}</Text><Button title="Lancer le rendu vidéo" onPress={()=>startRender(activeProject.id)} loading={busy} icon="play"/>{job&&job.project_id===activeProject.id?<View style={s.jobBox}><Text style={s.cardSub}>Rendu : {job.status} · {job.progress||0}%</Text><View style={s.progressTrack}><View style={[s.progressFill,{width:((Math.max(0,Math.min(100,job.progress||0)))+'%') as any}]}/></View>{job.error?<Text style={s.errorText}>{job.error}</Text>:null}{job.output_path?<Button title="Ouvrir la vidéo MP4" onPress={()=>openRender(job.output_path)} secondary icon="download"/>:null}</View>:null}</Panel>:null}
+    {activeProject?<Panel style={s.renderPanel}><Text style={s.sectionLabel}>PRODUCTION</Text><Text style={s.cardTitle}>{activeProject.titre}</Text><Button title="Lancer le rendu vidéo" onPress={()=>startRender(activeProject.id)} loading={busy} icon="play"/>{job&&job.project_id===activeProject.id?<View style={s.jobBox}><Text style={s.cardSub}>Rendu : {job.status} · {job.progress||0}%</Text><View style={s.progressTrack}><View style={[s.progressFill,{width:((Math.max(0,Math.min(100,job.progress||0)))+'%') as any}]}/></View>{job.error?<Text style={s.cardSub}>Un problème est survenu pendant cette production.</Text>:null}{job.output_path?<Button title="Ouvrir la vidéo MP4" onPress={()=>openRender(job.output_path)} secondary icon="download"/>:null}</View>:null}</Panel>:null}
     <Text style={s.sectionLabel}>RENDU RÉCENT</Text>{jobs.slice(0,8).map(j=><Panel key={j.id} style={s.jobRow}><View style={{flex:1}}><Text style={s.cardTitle}>Production · v{j.film_version}</Text><Text style={s.cardSub}>{j.status} · {j.progress||0}%</Text></View>{j.output_path?<Pressable onPress={()=>openRender(j.output_path)}><Feather name="download" size={20} color={C.violet}/></Pressable>:null}</Panel>)}
    </ScrollView>:null}
    {tab==='media'?<ScrollView contentContainerStyle={s.pageContent}><Text style={s.kicker}>RESSOURCES AUTORISÉES</Text><Text style={s.pageTitle}>Médiathèque</Text><Text style={s.pageDesc}>Catalogue des médias disponibles et de leurs licences.</Text><Button title="Joindre un média à une conversation" onPress={()=>{setTab('studio');addAttachment();}} icon="paperclip"/>{assets.length===0?<Panel style={s.emptyPanel}><Feather name="image" size={32} color={C.dim}/><Text style={s.cardTitle}>Aucun média dans le catalogue</Text><Text style={s.muted}>Les médias autorisés apparaîtront ici lorsqu’ils seront référencés dans la base.</Text></Panel>:assets.map(a=><Panel key={a.id} style={s.assetCard}>{a.proxy_url&&a.type==='image'?<Image source={{uri:a.proxy_url}} style={s.assetImage}/>:<View style={s.assetIcon}><Feather name={a.type==='video'?'video':a.type==='audio'?'music':'image'} size={23} color={C.violet}/></View>}<View style={{flex:1}}><Text style={s.cardTitle}>{a.titre||'Média sans titre'}</Text><Text style={s.cardSub}>{a.type} · {a.source_kind}</Text><Text style={s.cardMeta}>{a.licence||'Licence non précisée'} · {a.licence_ok?'Utilisable':'À vérifier'}</Text></View><Text style={s.score}>{a.score??'—'}</Text></Panel>)}</ScrollView>:null}
@@ -235,7 +227,6 @@ export default function App(){
 
   <Modal visible={projectModal} transparent animationType="fade" onRequestClose={()=>setProjectModal(false)}><View style={s.modalRoot}><Pressable style={s.scrim} onPress={()=>setProjectModal(false)}/><View style={s.modalCard}><Text style={s.cardTitle}>Créer un projet</Text><Text style={s.cardSub}>Définissez le titre et l’idée de départ.</Text><Field value={projectTitle} onChangeText={setProjectTitle} placeholder="Titre du projet" style={{marginTop:18}}/><Field value={projectBrief} onChangeText={setProjectBrief} placeholder="Décrivez brièvement votre idée…" multiline style={{marginTop:10,minHeight:90}}/><Button title="Créer le projet" onPress={createProject} loading={savingProject} disabled={!projectTitle.trim()}/><Button title="Annuler" onPress={()=>setProjectModal(false)} secondary/></View></View></Modal>
 
-  <Modal visible={filmVisible} animationType="slide" onRequestClose={()=>setFilmVisible(false)}><SafeAreaView style={s.filmModal}><View style={s.modalHeader}><Text style={s.cardTitle}>Film JSON · aperçu</Text><Pressable onPress={()=>setFilmVisible(false)}><Feather name="x" size={23} color={C.text}/></Pressable></View><ScrollView><Text style={s.filmJson}>{film?JSON.stringify(film,null,2):''}</Text></ScrollView><Text style={s.smallNote}>Document reçu du service chat-agent. Le rendu vidéo est confié au moteur Galingtosh Engine.</Text></SafeAreaView></Modal>
  </SafeAreaView></SafeAreaProvider>;
 }
 
