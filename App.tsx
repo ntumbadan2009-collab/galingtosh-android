@@ -1,5 +1,5 @@
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
-import {ActivityIndicator,Alert,FlatList,Image,KeyboardAvoidingView,Linking,Modal,Platform,Pressable,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from 'react-native';
+import {ActivityIndicator,Alert,FlatList,Image,Keyboard,KeyboardAvoidingView,Linking,Modal,Platform,Pressable,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from 'react-native';
 import {SafeAreaProvider,SafeAreaView} from 'react-native-safe-area-context';
 import {StatusBar as ExpoStatusBar} from 'expo-status-bar';
 import {Feather,Ionicons} from '@expo/vector-icons';
@@ -30,6 +30,7 @@ export default function App(){
  const [tab,setTab]=useState<Tab>('studio');
  const [session,setSession]=useState<any>(null);
  const [authReady,setAuthReady]=useState(false);
+ const [keyboardVisible,setKeyboardVisible]=useState(false);
  const [messages,setMessages]=useState<Message[]>([]);
  const [draft,setDraft]=useState('');
  const [busy,setBusy]=useState(false);
@@ -56,6 +57,12 @@ export default function App(){
 
  const user=session?.user;
  const activeProject=useMemo(()=>projects.find(p=>p.id===activeProjectId)||null,[projects,activeProjectId]);
+
+ useEffect(()=>{
+  const show=Keyboard.addListener('keyboardDidShow',()=>setKeyboardVisible(true));
+  const hide=Keyboard.addListener('keyboardDidHide',()=>setKeyboardVisible(false));
+  return ()=>{show.remove();hide.remove();};
+ },[]);
 
  useEffect(()=>{
   if(!supabaseConfigured){setAuthReady(true);return;}
@@ -236,7 +243,7 @@ export default function App(){
     <Text style={s.footer}>GALINGTOSH · ANDROID{ '\n'}Une création Dan Production</Text>
    </ScrollView>:null}
   </View>
-  <View style={s.nav}>{([{id:'studio',label:'Studio',icon:'message-circle'},{id:'projects',label:'Projets',icon:'film'},{id:'media',label:'Médias',icon:'grid'},{id:'account',label:'Compte',icon:'user'}] as const).map(item=><Pressable key={item.id} onPress={()=>setTab(item.id)} style={s.navItem}><Feather name={item.icon as any} size={20} color={tab===item.id?C.violet:C.dim}/><Text style={[s.navText,tab===item.id&&{color:C.text}]}>{item.label}</Text>{tab===item.id?<View style={s.navIndicator}/>:null}</Pressable>)}</View>
+  {!keyboardVisible&&<View style={s.nav}>{([{id:'studio',label:'Studio',icon:'message-circle'},{id:'projects',label:'Projets',icon:'film'},{id:'media',label:'Médias',icon:'grid'},{id:'account',label:'Compte',icon:'user'}] as const).map(item=><Pressable key={item.id} onPress={()=>setTab(item.id)} style={s.navItem}><Feather name={item.icon as any} size={20} color={tab===item.id?C.violet:C.dim}/><Text style={[s.navText,tab===item.id&&{color:C.text}]}>{item.label}</Text>{tab===item.id?<View style={s.navIndicator}/>:null}</Pressable>)}</View>
 
   <Modal visible={projectModal} transparent animationType="fade" onRequestClose={()=>setProjectModal(false)}><View style={s.modalRoot}><Pressable style={s.scrim} onPress={()=>setProjectModal(false)}/><View style={s.modalCard}><Text style={s.cardTitle}>Créer un projet</Text><Text style={s.cardSub}>Définissez le titre et l’idée de départ.</Text><Field value={projectTitle} onChangeText={setProjectTitle} placeholder="Titre du projet" style={{marginTop:18}}/><Field value={projectBrief} onChangeText={setProjectBrief} placeholder="Décrivez brièvement votre idée…" multiline style={{marginTop:10,minHeight:90}}/><Button title="Créer le projet" onPress={createProject} loading={savingProject} disabled={!projectTitle.trim()}/><Button title="Annuler" onPress={()=>setProjectModal(false)} secondary/></View></View></Modal>
 
