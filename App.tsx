@@ -75,7 +75,7 @@ export default function App(){
  const loadAssets=useCallback(async()=>{
   if(!user)return;
   const {data,error}=await supabase.from('media_assets').select('id,type,source_kind,titre,provenance,licence,licence_ok,duree,proxy_url,score,fiche,utilisation').order('score',{ascending:false}).limit(80);
-  if(error){setPageError(error.message);return;}
+  if(error){setPageError('Impossible de charger les médias pour le moment.');return;}
   setAssets((data||[]) as Asset[]);
  },[user?.id]);
 
