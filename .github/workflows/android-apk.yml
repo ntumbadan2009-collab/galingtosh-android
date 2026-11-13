@@ -36,13 +36,13 @@ jobs:
         run: npx expo config --type public
       - name: Generate native Android project
         run: npx expo prebuild --platform android --no-install
-      - name: Build ARM universal debug APK
+      - name: Build ARM universal release APK (bundles JavaScript)
         working-directory: android
-        run: chmod +x gradlew && ./gradlew -PreactNativeArchitectures=arm64-v8a,armeabi-v7a assembleDebug --no-daemon
+        run: chmod +x gradlew && ./gradlew -PreactNativeArchitectures=arm64-v8a,armeabi-v7a assembleRelease --no-daemon
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: galingtosh-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: galingtosh-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
