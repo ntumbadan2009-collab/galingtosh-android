@@ -199,7 +199,7 @@ export default function App(){
   </View>
   {pageError? <Pressable onPress={()=>setPageError('')} style={s.errorBanner}><Text style={s.errorText}>{pageError}  ×</Text></Pressable>:null}
   <View style={s.main}>
-   {tab==='studio'?<KeyboardAvoidingView style={s.flex} behavior={Platform.OS==='ios'?'padding':undefined} keyboardVerticalOffset={0}>
+   {tab==='studio'?<KeyboardAvoidingView style={s.flex} behavior={Platform.OS==='ios'?'padding':'height'} keyboardVerticalOffset={0}>
     <ScrollView style={s.flex} contentContainerStyle={[s.chatContent,messages.length===0&&s.center]} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS==='ios'?'interactive':'on-drag'}>
      {messages.length===0?<View style={s.welcome}>
       <View style={s.heroOuter}><View style={s.heroGlow}/><LinearGradient colors={['#783BFF','#B84CEB','#F17BCB']} style={s.hero}><Ionicons name="film" size={58} color="#160C2D"/></LinearGradient></View>
