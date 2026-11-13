@@ -8,6 +8,7 @@
     "newArchEnabled": true,
     "icon": "./assets/icon.png",
     "android": {
+      "softwareKeyboardLayoutMode": "resize",
       "package": "com.danproduction.galingtosh",
       "versionCode": 3,
       "icon": "./assets/icon.png",
