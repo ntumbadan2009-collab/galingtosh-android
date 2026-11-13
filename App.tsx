@@ -17,7 +17,6 @@ type Message={id:string;role:'user'|'assistant';text:string};
 type Project={id:string;titre:string;brief:string|null;format:string|null;statut:string|null;version:number|null;duree_cible:number|null};
 type Asset={id:string;type:string;source_kind:string;titre:string;provenance:any;licence:string;licence_ok:boolean;duree:number|null;proxy_url:string|null;score:number|null;fiche:any;utilisation:number|null};
 type Attachment={bucket:'user-uploads';path:string;name:string;mime_type:string};
-const ENGINE='https://galingtosh-engine.onrender.com';
 const REDIRECT='galingtosh://auth/callback';
 const C={bg:'#080611',surface:'#12101E',surface2:'#191629',surface3:'#211B35',border:'#332846',text:'#F7F3FF',muted:'#B2A7C8',dim:'#81758F',purple:'#783BFF',violet:'#A75BFF',pink:'#F17BCB',green:'#55D6A1',amber:'#FFC66D',red:'#FF7187'};
 
@@ -51,8 +50,6 @@ export default function App(){
  const [password,setPassword]=useState('');
  const [authMode,setAuthMode]=useState<'login'|'signup'>('login');
  const [authBusy,setAuthBusy]=useState(false);
- const [engineStatus,setEngineStatus]=useState('Vérification…');
- const [engineBusy,setEngineBusy]=useState(false);
  const [pageError,setPageError]=useState('');
 
  const user=session?.user;
@@ -196,14 +193,6 @@ export default function App(){
   catch(e:any){Alert.alert('Téléchargement impossible',e.message||'Le fichier n’est pas disponible.');}
  }
 
- async function checkEngine(){
-  setEngineBusy(true);setEngineStatus('Vérification…');
-  try{const response=await fetch(ENGINE+'/health');if(!response.ok)throw new Error('HTTP '+response.status);const data=await response.json();setEngineStatus(data.status==='ok'?'En ligne':'Réponse inattendue');}
-  catch{setEngineStatus('Indisponible ou en veille');}
-  finally{setEngineBusy(false);}
- }
- useEffect(()=>{checkEngine();},[]);
-
  const screenTitle=tab==='studio'?'Studio':tab==='projects'?'Mes projets':tab==='media'?'Médiathèque':'Compte';
 
  if(!authReady)return <SafeAreaProvider><SafeAreaView style={s.safe}><View style={s.loading}><BrandMark size={58}/><ActivityIndicator color={C.violet} style={{marginTop:20}}/><Text style={s.muted}>Initialisation de Galingtosh…</Text></View></SafeAreaView></SafeAreaProvider>;
@@ -238,8 +227,7 @@ export default function App(){
    </ScrollView>:null}
    {tab==='media'?<ScrollView contentContainerStyle={s.pageContent}><Text style={s.kicker}>RESSOURCES AUTORISÉES</Text><Text style={s.pageTitle}>Médiathèque</Text><Text style={s.pageDesc}>Catalogue des médias disponibles et de leurs licences.</Text><Button title="Joindre un média à une conversation" onPress={()=>{setTab('studio');addAttachment();}} icon="paperclip"/>{assets.length===0?<Panel style={s.emptyPanel}><Feather name="image" size={32} color={C.dim}/><Text style={s.cardTitle}>Aucun média dans le catalogue</Text><Text style={s.muted}>Les médias autorisés apparaîtront ici lorsqu’ils seront référencés dans la base.</Text></Panel>:assets.map(a=><Panel key={a.id} style={s.assetCard}>{a.proxy_url&&a.type==='image'?<Image source={{uri:a.proxy_url}} style={s.assetImage}/>:<View style={s.assetIcon}><Feather name={a.type==='video'?'video':a.type==='audio'?'music':'image'} size={23} color={C.violet}/></View>}<View style={{flex:1}}><Text style={s.cardTitle}>{a.titre||'Média sans titre'}</Text><Text style={s.cardSub}>{a.type} · {a.source_kind}</Text><Text style={s.cardMeta}>{a.licence||'Licence non précisée'} · {a.licence_ok?'Utilisable':'À vérifier'}</Text></View><Text style={s.score}>{a.score??'—'}</Text></Panel>)}</ScrollView>:null}
    {tab==='account'?<ScrollView contentContainerStyle={s.pageContent}><Text style={s.kicker}>PRÉFÉRENCES</Text><Text style={s.pageTitle}>Compte & paramètres</Text>
-    {!user?<Panel style={s.authPanel}><Text style={s.cardTitle}>{authMode==='login'?'Connexion à Galingtosh':'Créer un compte'}</Text><Text style={s.cardSub}>Utilisez votre adresse Gmail ou votre compte Google.</Text><Field value={email} onChangeText={setEmail} placeholder="Adresse e-mail" autoCapitalize="none" keyboardType="email-address" style={{marginTop:18}}/><Field value={password} onChangeText={setPassword} placeholder="Mot de passe" secureTextEntry style={{marginTop:10}}/><Button title={authMode==='login'?'Se connecter':'Créer mon compte'} onPress={signIn} loading={authBusy}/><Button title="Continuer avec Google" onPress={googleAuth} secondary loading={authBusy} icon="chrome"/><Pressable onPress={()=>setAuthMode(v=>v==='login'?'signup':'login')}><Text style={s.link}>{authMode==='login'?'Créer un compte':'J’ai déjà un compte'}</Text></Pressable>{authMode==='login'?<Pressable onPress={resetPassword}><Text style={s.forgot}>Mot de passe oublié ?</Text></Pressable>:null}<Text style={s.smallNote}>L’authentification utilise Supabase Auth. Le fournisseur Google doit être activé dans le tableau de bord Supabase.</Text></Panel>:<Panel style={s.authPanel}><View style={s.accountRow}><View style={s.avatar}><Text style={s.avatarText}>{(user.email||'G').slice(0,1).toUpperCase()}</Text></View><View style={{flex:1}}><Text style={s.cardTitle}>{user.email||'Compte Galingtosh'}</Text><Text style={s.cardSub}>Session authentifiée</Text></View></View><Button title="Se déconnecter" onPress={signOut} secondary icon="log-out"/></Panel>}
-    <Panel style={{marginTop:15}}><Text style={s.sectionLabel}>ÉTAT DES SERVICES</Text><View style={s.serviceRow}><Text style={s.cardSub}>Supabase</Text><Text style={[s.serviceValue,{color:supabaseConfigured?C.green:C.amber}]}>{supabaseConfigured?'Clé configurée':'Clé publique manquante'}</Text></View><View style={s.serviceRow}><Text style={s.cardSub}>Moteur de rendu</Text><Text style={[s.serviceValue,{color:engineStatus==='En ligne'?C.green:C.amber}]}>{engineStatus}</Text></View><Button title="Vérifier le moteur" onPress={checkEngine} loading={engineBusy} secondary icon="refresh-cw"/></Panel>
+    {!user?<Panel style={s.authPanel}><Text style={s.cardTitle}>{authMode==='login'?'Connexion à Galingtosh':'Créer un compte'}</Text><Text style={s.cardSub}>Utilisez votre adresse Gmail ou votre compte Google.</Text><Field value={email} onChangeText={setEmail} placeholder="Adresse e-mail" autoCapitalize="none" keyboardType="email-address" style={{marginTop:18}}/><Field value={password} onChangeText={setPassword} placeholder="Mot de passe" secureTextEntry style={{marginTop:10}}/><Button title={authMode==='login'?'Se connecter':'Créer mon compte'} onPress={signIn} loading={authBusy}/><Button title="Continuer avec Google" onPress={googleAuth} secondary loading={authBusy} icon="chrome"/><Pressable onPress={()=>setAuthMode(v=>v==='login'?'signup':'login')}><Text style={s.link}>{authMode==='login'?'Créer un compte':'J’ai déjà un compte'}</Text></Pressable>{authMode==='login'?<Pressable onPress={resetPassword}><Text style={s.forgot}>Mot de passe oublié ?</Text></Pressable>:null}</Panel>:<Panel style={s.authPanel}><View style={s.accountRow}><View style={s.avatar}><Text style={s.avatarText}>{(user.email||'G').slice(0,1).toUpperCase()}</Text></View><View style={{flex:1}}><Text style={s.cardTitle}>{user.email||'Compte Galingtosh'}</Text><Text style={s.cardSub}>Session authentifiée</Text></View></View><Button title="Se déconnecter" onPress={signOut} secondary icon="log-out"/></Panel>}
     <Text style={s.footer}>GALINGTOSH · ANDROID{ '\n'}Une création Dan Production</Text>
    </ScrollView>:null}
   </View>
