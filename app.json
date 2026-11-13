@@ -6,11 +6,14 @@
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "icon": "./assets/icon.png",
     "android": {
       "package": "com.danproduction.galingtosh",
-      "versionCode": 2,
+      "versionCode": 3,
+      "icon": "./assets/icon.png",
       "adaptiveIcon": {
-        "backgroundColor": "#080611"
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#030106"
       }
     },
     "extra": {},
