@@ -1,8 +1,9 @@
+import {functionError} from './functionError';
 import {supabase} from './supabase';
 export type RenderJob={id:string;project_id:string;user_id:string;film_version:number;status:string;progress:number;output_path?:string|null;error?:string|null;warnings?:string[]|null;attempts?:number;created_at?:string;finished_at?:string|null};
 export async function requestRender(projectId:string):Promise<{job_id:string;status:string}>{
  const {data,error}=await supabase.functions.invoke('request-render',{body:{project_id:projectId}});
- if(error)throw new Error(error.message||'Impossible de mettre le rendu en file.');
+ if(error)throw await functionError(error,'Impossible de mettre le rendu en file.');
  if(!data?.job_id)throw new Error('La réponse request-render ne contient pas job_id.');
  return data;
 }
@@ -17,3 +18,4 @@ export async function listRenderJobs(projectId?:string):Promise<RenderJob[]>{
 export async function getRenderDownloadUrl(path:string):Promise<string>{
  const {data,error}=await supabase.storage.from('renders').createSignedUrl(path,900);if(error)throw error;return data.signedUrl;
 }
+

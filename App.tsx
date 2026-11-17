@@ -1,9 +1,10 @@
-import React,{useCallback,useEffect,useMemo,useState} from 'react';
-import {ActivityIndicator,Alert,FlatList,Image,Keyboard,KeyboardAvoidingView,Linking,Modal,Platform,Pressable,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from 'react-native';
+import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import {ActivityIndicator,Alert,AppState,FlatList,Image,Keyboard,KeyboardAvoidingView,Linking,Modal,Platform,Pressable,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from 'react-native';
 import {SafeAreaProvider,SafeAreaView} from 'react-native-safe-area-context';
 import {StatusBar as ExpoStatusBar} from 'expo-status-bar';
 import {Feather,Ionicons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
+import {File} from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
 import * as WebBrowser from 'expo-web-browser';
 import {supabase,supabaseConfigured,SUPABASE_URL} from './src/lib/supabase';
@@ -13,9 +14,10 @@ import {getRenderDownloadUrl,getRenderJob,listRenderJobs,requestRender,RenderJob
 WebBrowser.maybeCompleteAuthSession();
 type Tab='studio'|'projects'|'media'|'account';
 type Message={id:string;role:'user'|'assistant';text:string};
-type Project={id:string;titre:string;brief:string|null;format:string|null;statut:string|null;version:number|null;duree_cible:number|null};
-type Asset={id:string;type:string;source_kind:string;titre:string;provenance:any;licence:string;licence_ok:boolean;duree:number|null;proxy_url:string|null;score:number|null;fiche:any;utilisation:number|null};
-type Attachment={bucket:'user-uploads';path:string;name:string;mime_type:string};
+type Project={id:string;title:string;type:string;created_at:string;updated_at:string};
+type Asset={id:string;project_id:string;kind:string;source:string;storage_path:string|null;license:string|null;provenance:any;analysis:any;preview?:string};
+type Attachment={id:string;path:string;name:string};
+const JOB_LABELS:Record<string,string>={queued:'En attente',running:'En production',done:'Terminé',failed:'Échec',canceled:'Annulé'};
 const REDIRECT='galingtosh://auth/callback';
 const C={bg:'#080611',surface:'#12101E',surface2:'#191629',surface3:'#211B35',border:'#332846',text:'#F7F3FF',muted:'#B2A7C8',dim:'#81758F',purple:'#783BFF',violet:'#A75BFF',pink:'#F17BCB',green:'#55D6A1',amber:'#FFC66D',red:'#FF7187'};
 
@@ -48,6 +50,17 @@ export default function App(){
  const [authMode,setAuthMode]=useState<'login'|'signup'>('login');
  const [authBusy,setAuthBusy]=useState(false);
  const [pageError,setPageError]=useState('');
+ const [loadingProject,setLoadingProject]=useState(false);
+ const [uploading,setUploading]=useState(false);
+ const [renderBusy,setRenderBusy]=useState(false);
+ const [recovery,setRecovery]=useState(false);
+ const [newPassword,setNewPassword]=useState('');
+ const [film,setFilm]=useState<any>(null);
+ const [filmVersion,setFilmVersion]=useState(1);
+ const [showFilm,setShowFilm]=useState(false);
+ const requestEpoch=useRef(0);
+ const handledUrls=useRef(new Set<string>());
+ const chatScroll=useRef<ScrollView>(null);
 
  const user=session?.user;
  const activeProject=useMemo(()=>projects.find(p=>p.id===activeProjectId)||null,[projects,activeProjectId]);
@@ -61,36 +74,94 @@ export default function App(){
  useEffect(()=>{
   if(!supabaseConfigured){setAuthReady(true);return;}
   supabase.auth.getSession().then(({data})=>{setSession(data.session);setAuthReady(true);}).catch(()=>setAuthReady(true));
-  const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,next)=>setSession(next));
+  const {data:{subscription}}=supabase.auth.onAuthStateChange((event,next)=>{setSession(next);if(event==='PASSWORD_RECOVERY'){setRecovery(true);setTab('account');}if(!next)requestEpoch.current++;});
   return ()=>subscription.unsubscribe();
  },[]);
 
  const loadProjects=useCallback(async()=>{
   if(!user)return;
-  const {data,error}=await supabase.from('projects').select('id,titre,brief,format,statut,version,duree_cible').order('id',{ascending:false}).limit(50);
+  const epoch=requestEpoch.current;
+  const {data,error}=await supabase.from('projects').select('id,title,type,created_at,updated_at').order('updated_at',{ascending:false}).limit(50);
   if(error){setPageError('Impossible de charger ces données pour le moment.');return;}
-  setProjects((data||[]) as Project[]);
+  if(epoch===requestEpoch.current)setProjects((data||[]) as Project[]);
  },[user?.id]);
 
- const loadAssets=useCallback(async()=>{
+ const loadAssets=useCallback(async(projectId?:string|null)=>{
   if(!user)return;
-  const {data,error}=await supabase.from('media_assets').select('id,type,source_kind,titre,provenance,licence,licence_ok,duree,proxy_url,score,fiche,utilisation').order('score',{ascending:false}).limit(80);
-  if(error){setPageError('Impossible de charger les médias pour le moment.');return;}
-  setAssets((data||[]) as Asset[]);
+  const epoch=requestEpoch.current;
+  let q=supabase.from('media_assets').select('id,project_id,kind,source,storage_path,license,provenance,analysis').order('created_at',{ascending:false}).limit(80);
+  if(projectId)q=q.eq('project_id',projectId);
+  const {data,error}=await q;
+  if(epoch!==requestEpoch.current)return;
+  if(error){setPageError('Impossible de charger les médias. Utilisez Actualiser pour réessayer.');return;}
+  const rows=await Promise.all((data||[]).map(async(a:Asset)=>{
+   if(a.kind==='image'&&a.storage_path){const r=await supabase.storage.from('user-uploads').createSignedUrl(a.storage_path,900);return {...a,preview:r.data?.signedUrl};}
+   return {...a,preview:a.provenance?.preview_url};
+  }));
+  if(epoch===requestEpoch.current)setAssets(rows);
  },[user?.id]);
 
  const loadJobs=useCallback(async(projectId?:string)=>{
   if(!user)return;
-  try{setJobs(await listRenderJobs(projectId));}catch{setPageError('Impossible de charger les productions pour le moment.');}
+  const epoch=requestEpoch.current;
+  try{const rows=await listRenderJobs(projectId);if(epoch!==requestEpoch.current)return;setJobs(rows);setJob(rows.find(j=>['queued','running'].includes(j.status))||rows[0]||null);}
+  catch{setPageError('Impossible de charger les productions. Utilisez Actualiser pour réessayer.');}
  },[user?.id]);
 
- useEffect(()=>{if(user){loadProjects();loadAssets();loadJobs();}else{setProjects([]);setAssets([]);setJobs([]);setActiveProjectId(null);}},[user?.id,loadProjects,loadAssets,loadJobs]);
+ async function loadFilm(projectId:string){
+  const epoch=requestEpoch.current;
+  const {data,error}=await supabase.from('films').select('data,version').eq('project_id',projectId).order('version',{ascending:false}).limit(1).maybeSingle();
+  if(epoch!==requestEpoch.current)return;
+  if(error)throw error;setFilm(data?.data||null);setFilmVersion(data?.version||1);
+ }
+ async function openProject(id:string){
+  if(busy||uploading||loadingProject){Alert.alert('Opération en cours','Attendez la fin de l’opération avant de changer de projet.');return;}
+  const epoch=++requestEpoch.current;
+  setActiveProjectId(id);setConversationId(null);setMessages([]);setAttachments([]);setDraft('');setFilm(null);setJob(null);setJobs([]);setAssets([]);setTab('studio');setLoadingProject(true);setPageError('');
+  try{
+   const {data:c,error}=await supabase.from('conversations').select('id').eq('project_id',id).order('created_at',{ascending:false}).limit(1).maybeSingle();
+   if(error)throw error;
+   if(epoch!==requestEpoch.current)return;
+   if(c){
+    const {data:history,error:he}=await supabase.from('messages').select('id,role,content').eq('conversation_id',c.id).in('role',['user','assistant']).order('created_at',{ascending:false}).limit(100);
+    if(he)throw he;if(epoch!==requestEpoch.current)return;
+    setConversationId(c.id);setMessages((history||[]).reverse().filter(m=>m.content).map(m=>({id:m.id,role:m.role,text:m.content})));
+   }
+   await Promise.all([loadFilm(id),loadAssets(id),loadJobs(id)]);
+  }catch{if(epoch===requestEpoch.current)setPageError('Le projet n’a pas pu être chargé complètement. Rouvrez-le pour réessayer.');}
+  finally{if(epoch===requestEpoch.current)setLoadingProject(false);}
+ }
+ useEffect(()=>{
+  requestEpoch.current++;
+  if(user){loadProjects();loadAssets();loadJobs();}
+  else{setProjects([]);setAssets([]);setJobs([]);setActiveProjectId(null);setConversationId(null);setMessages([]);setAttachments([]);setDraft('');setJob(null);setFilm(null);setPassword('');setRecovery(false);setPageError('');}
+ },[user?.id,loadProjects,loadAssets,loadJobs]);
 
  useEffect(()=>{
-  if(!job||!['queued','running'].includes(job.status))return;
-  const timer=setInterval(async()=>{try{const next=await getRenderJob(job.id);setJob(next);if(!['queued','running'].includes(next.status)){loadJobs(activeProjectId||undefined);}}catch{}},5000);
-  return ()=>clearInterval(timer);
- },[job?.id,job?.status,activeProjectId,loadJobs]);
+  if(!user)return;
+  const refresh=()=>{loadJobs(activeProjectId||undefined);};
+  const sub=AppState.addEventListener('change',state=>{if(state==='active'){supabase.auth.startAutoRefresh();refresh();}else supabase.auth.stopAutoRefresh();});
+  const timer=setInterval(refresh,5000);
+  return ()=>{sub.remove();clearInterval(timer);};
+ },[user?.id,activeProjectId,loadJobs]);
+
+ async function handleAuthUrl(url:string){
+  if(!url.startsWith(REDIRECT)||handledUrls.current.has(url))return;
+  handledUrls.current.add(url);
+  try{
+   const parsed=new URL(url);const hash=new URLSearchParams(parsed.hash.slice(1));
+   if(parsed.searchParams.get('error')||hash.get('error'))throw new Error('Lien expiré ou invalide.');
+   const code=parsed.searchParams.get('code');
+   if(code){const {error}=await supabase.auth.exchangeCodeForSession(code);if(error)throw error;}
+   else{const access_token=hash.get('access_token');const refresh_token=hash.get('refresh_token');if(!access_token||!refresh_token)throw new Error('Lien incomplet.');const {error}=await supabase.auth.setSession({access_token,refresh_token});if(error)throw error;}
+   if(hash.get('type')==='recovery'||parsed.searchParams.get('type')==='recovery'){setRecovery(true);setTab('account');}
+  }catch{Alert.alert('Lien inutilisable','Demandez un nouveau lien puis ouvrez-le sur cet appareil.');}
+ }
+ useEffect(()=>{Linking.getInitialURL().then(url=>{if(url)handleAuthUrl(url);});const sub=Linking.addEventListener('url',e=>{handleAuthUrl(e.url);});return()=>sub.remove();},[]);
+ async function savePassword(){
+  if(newPassword.length<8){Alert.alert('Mot de passe trop court','Utilisez au moins 8 caractères.');return;}
+  setAuthBusy(true);try{const {error}=await supabase.auth.updateUser({password:newPassword});if(error)throw error;setNewPassword('');setRecovery(false);Alert.alert('Mot de passe modifié','Votre nouveau mot de passe est enregistré.');}catch{Alert.alert('Modification impossible','Réessayez ou demandez un nouveau lien de réinitialisation.');}finally{setAuthBusy(false);}
+ }
 
  async function signIn(){
   if(!supabaseConfigured){Alert.alert('Service temporairement indisponible','Veuillez réessayer ultérieurement.');return;}
@@ -112,15 +183,7 @@ export default function App(){
    const {data,error}=await supabase.auth.signInWithOAuth({provider:'google',options:{redirectTo:REDIRECT,skipBrowserRedirect:true}});
    if(error)throw error;if(!data.url)throw new Error("URL OAuth Google absente.");
    const result=await WebBrowser.openAuthSessionAsync(data.url,REDIRECT);
-   if(result.type==='success'&&result.url){
-    const callback=new URL(result.url);const code=callback.searchParams.get('code');
-    if(code){const exchanged=await supabase.auth.exchangeCodeForSession(code);if(exchanged.error)throw exchanged.error;}
-    else{const params=new URLSearchParams(callback.hash.replace(/^#/,''));
-     const access_token=params.get('access_token');const refresh_token=params.get('refresh_token');
-     if(access_token&&refresh_token){const saved=await supabase.auth.setSession({access_token,refresh_token});if(saved.error)throw saved.error;}
-     else throw new Error("Le retour Google ne contient pas de code d'authentification.");
-    }
-   }
+   if(result.type==='success'&&result.url)await handleAuthUrl(result.url);
   }catch(e:any){Alert.alert('Connexion Google impossible','Veuillez réessayer ou utiliser la connexion par e-mail.');}
   finally{setAuthBusy(false);}
  }
@@ -131,53 +194,67 @@ export default function App(){
   Alert.alert(error?'Échec':'E-mail envoyé',error?.message||'Consultez votre boîte e-mail pour réinitialiser votre mot de passe.');
  }
 
- async function signOut(){await supabase.auth.signOut();setMessages([]);setConversationId(null);}
+ async function signOut(){if(busy||uploading){Alert.alert('Opération en cours','Attendez la fin de l’envoi.');return;}const {error}=await supabase.auth.signOut();if(error)Alert.alert('Déconnexion impossible','Vérifiez votre connexion puis réessayez.');}
 
  async function createProject(){
-  if(!user||!projectTitle.trim())return;
+  if(!user||!projectTitle.trim()||savingProject||busy||uploading)return;
   setSavingProject(true);
   try{
-   const {data,error}=await supabase.from('projects').insert({owner:user.id,titre:projectTitle.trim(),brief:projectBrief.trim()||null}).select('id,titre,brief,format,statut,version,duree_cible').single();
+   const {data,error}=await supabase.rpc('create_studio_project',{p_title:projectTitle.trim(),p_synopsis:projectBrief.trim()});
    if(error)throw error;
-   setProjects(p=>[data as Project,...p]);setActiveProjectId(data.id);setProjectModal(false);setProjectTitle('');setProjectBrief('');setTab('studio');
-   setMessages([{id:String(Date.now()),role:'assistant',text:'Projet « '+data.titre+' » créé. Décris maintenant le film que tu souhaites réaliser.'}]);
+   const created=(Array.isArray(data)?data[0]:data) as Project;
+   await loadProjects();setProjectModal(false);setProjectTitle('');setProjectBrief('');
+   await openProject(created.id);
+   Alert.alert('Projet créé','Votre projet est prêt. Décrivez le film à réaliser dans le Studio.');
   }catch{Alert.alert('Création impossible','Veuillez réessayer dans quelques instants.');}
   finally{setSavingProject(false);}
  }
 
  async function addAttachment(){
-  if(!user){Alert.alert('Connexion requise','Connectez-vous pour joindre un média.');return;}
+  if(!user){setTab('account');return;}
+  if(!activeProjectId){Alert.alert('Choisissez un projet','Ouvrez ou créez un projet avant d’importer vos médias.');setTab('projects');return;}
+  if(uploading||busy||loadingProject)return;
+  if(attachments.length>=10){Alert.alert('Limite atteinte','Vous pouvez joindre 10 médias par message.');return;}
+  setUploading(true);
   try{
    const picked=await DocumentPicker.getDocumentAsync({type:['image/*','video/*','audio/*'],copyToCacheDirectory:true,multiple:false});
    if(picked.canceled||!picked.assets?.length)return;
-   const file=picked.assets[0];const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'_').slice(-100);
-   const path=user.id+'/'+Date.now()+'-'+safeName;
-   const response=await fetch(file.uri);const blob=await response.blob();
-   const {error}=await supabase.storage.from('user-uploads').upload(path,blob,{contentType:file.mimeType||'application/octet-stream',upsert:false});
+   const file=picked.assets[0];const local=new File(file.uri);
+   const mime=file.mimeType||local.type;
+   const allowed=['image/png','image/jpeg','image/webp','image/gif','video/mp4','video/quicktime','video/webm','audio/mpeg','audio/wav','audio/mp4','audio/ogg'];
+   if(!allowed.includes(mime))throw new Error('Format non pris en charge. Utilisez JPG, PNG, WebP, GIF, MP4, MOV, WebM, MP3, WAV, M4A ou OGG.');
+   if(!local.size||local.size>50*1024*1024)throw new Error('Le fichier doit être non vide et ne pas dépasser 50 Mo.');
+   const path=user.id+'/'+Date.now()+'-'+file.name.replace(/[^a-zA-Z0-9._-]/g,'_').slice(-100);
+   const {error}=await supabase.storage.from('user-uploads').upload(path,await local.arrayBuffer(),{contentType:mime,upsert:false});
    if(error)throw error;
-   setAttachments(a=>[...a,{bucket:'user-uploads',path,name:file.name,mime_type:file.mimeType||'application/octet-stream'}]);
-  }catch{Alert.alert('Ajout du média impossible','Vérifiez le fichier puis réessayez.');}
+   const {data,error:insertError}=await supabase.from('media_assets').insert({project_id:activeProjectId,user_id:user.id,kind:mime.split('/')[0],source:'upload',storage_path:path,analysis:{original_name:file.name}}).select('id').single();
+   if(insertError){await supabase.storage.from('user-uploads').remove([path]);throw insertError;}
+   setAttachments(a=>[...a,{id:data.id,path,name:file.name}]);await loadAssets(activeProjectId);
+  }catch(e:any){Alert.alert('Import impossible',e.message||'Vérifiez le fichier et votre connexion.');}
+  finally{setUploading(false);}
  }
 
  async function sendMessage(){
-  const text=draft.trim();if((!text&&!attachments.length)||busy)return;
+  const text=draft.trim();if((!text&&!attachments.length)||busy||uploading||loadingProject)return;
   if(!supabaseConfigured||!user){Alert.alert('Connexion requise','Connectez-vous avec votre compte Galingtosh avant d’utiliser le Studio.');setTab('account');return;}
-  const attached=[...attachments];setMessages(m=>[...m,{id:String(Date.now()),role:'user',text:text||'Média joint',}]);
+  const epoch=requestEpoch.current;const attached=[...attachments];setMessages(m=>[...m,{id:String(Date.now()),role:'user',text:text||'Média joint',}]);
   setDraft('');setAttachments([]);setBusy(true);
   try{
-   const result=await sendToAgent(text||'Analyse les médias joints et aide-moi à préparer mon film.',activeProjectId,attached,conversationId);
+   const result=await sendToAgent(text||'Analyse les médias joints et aide-moi à préparer mon film.',activeProjectId,attached.map(a=>a.id),conversationId);
+   if(epoch!==requestEpoch.current)return;
    setMessages(m=>[...m,{id:String(Date.now()+1),role:'assistant',text:result.reply}]);
    if(result.conversation_id)setConversationId(result.conversation_id);
-   if(result.project_id){setActiveProjectId(result.project_id);loadProjects();}
+   if(result.project_id){setActiveProjectId(result.project_id);loadProjects();await Promise.all([loadFilm(result.project_id),loadAssets(result.project_id)]);}
    if(result.render_job_id){const next=await getRenderJob(result.render_job_id);setJob(next);loadJobs(result.project_id||activeProjectId||undefined);}
-  }catch{setMessages(m=>[...m,{id:String(Date.now()+2),role:'assistant',text:'Une erreur est survenue pendant le traitement. Veuillez réessayer.'}]);}
+  }catch(e:any){if(epoch!==requestEpoch.current)return;setDraft(text);setAttachments(attached);setPageError(e.message||'La réponse n’a pas pu être reçue. Vérifiez le projet avant de renvoyer : certaines opérations peuvent avoir été enregistrées.');}
   finally{setBusy(false);}
  }
 
  async function startRender(projectId:string){
-  try{setBusy(true);const queued=await requestRender(projectId);const next=await getRenderJob(queued.job_id);setJob(next);await loadJobs(projectId);Alert.alert('Rendu lancé','Votre film est dans la file de production.');}
-  catch{Alert.alert('Impossible de lancer la production','Veuillez réessayer dans quelques instants.');}
-  finally{setBusy(false);}
+  if(renderBusy)return;
+  try{setRenderBusy(true);const queued=await requestRender(projectId);const next=await getRenderJob(queued.job_id);setJob(next);await loadJobs(projectId);Alert.alert('Rendu lancé','Votre film est dans la file de production.');}
+  catch(e:any){Alert.alert('Production impossible',e.message||'Vérifiez les plans et les médias du film.');}
+  finally{setRenderBusy(false);}
  }
 
  async function openRender(path?:string|null){
@@ -190,7 +267,7 @@ export default function App(){
 
  if(!authReady)return <SafeAreaProvider><SafeAreaView style={s.safe}><View style={s.loading}><BrandMark size={58}/><ActivityIndicator color={C.violet} style={{marginTop:20}}/><Text style={s.muted}>Initialisation de Galingtosh…</Text></View></SafeAreaView></SafeAreaProvider>;
 
- return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top','left','right']}><ExpoStatusBar style="light"/><StatusBar barStyle="light-content" backgroundColor={C.bg}/>
+ return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top','left','right','bottom']}><ExpoStatusBar style="light"/><StatusBar barStyle="light-content" backgroundColor={C.bg}/>
   <LinearGradient colors={['#080611','#090714','#07050D']} style={StyleSheet.absoluteFill}/>
   <View pointerEvents="none" style={s.glowTop}/><View pointerEvents="none" style={s.glowBottom}/>
   <View style={s.header}>
@@ -200,31 +277,36 @@ export default function App(){
   {pageError? <Pressable onPress={()=>setPageError('')} style={s.errorBanner}><Text style={s.errorText}>{pageError}  ×</Text></Pressable>:null}
   <View style={s.main}>
    {tab==='studio'?<KeyboardAvoidingView style={s.flex} behavior={Platform.OS==='ios'?'padding':'height'} keyboardVerticalOffset={0}>
-    <ScrollView style={s.flex} contentContainerStyle={[s.chatContent,messages.length===0&&s.center]} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS==='ios'?'interactive':'on-drag'}>
+    <View style={{paddingHorizontal:20,paddingVertical:10,flexDirection:'row',alignItems:'center',gap:12}}><View style={{flex:1}}><Text style={s.sectionLabel}>PROJET ACTIF</Text><Text style={s.cardTitle}>{activeProject?.title||'Nouvelle conversation'}</Text></View>{activeProjectId?<Button title="Scènes" onPress={()=>{setShowFilm(true);loadFilm(activeProjectId).catch(()=>setPageError('Impossible de charger le film.'));}} secondary/>:<Button title="Choisir" onPress={()=>setTab('projects')} secondary/>}</View>
+    {loadingProject?<ActivityIndicator color={C.violet}/>:null}
+    <ScrollView ref={chatScroll} onContentSizeChange={()=>chatScroll.current?.scrollToEnd({animated:true})} style={s.flex} contentContainerStyle={[s.chatContent,messages.length===0&&s.center]} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS==='ios'?'interactive':'on-drag'}>
      {messages.length===0?<View style={s.welcome}>
       <View style={s.heroOuter}><View style={s.heroGlow}/><LinearGradient colors={['#783BFF','#B84CEB','#F17BCB']} style={s.hero}><Ionicons name="film" size={58} color="#160C2D"/></LinearGradient></View>
       <Text style={s.welcomeText}>Posez votre question{ '\n'}à Galingtosh...</Text><Text style={s.welcomeSub}>Imaginez. Décrivez. Réalisez.</Text>
       <View style={s.suggestions}><Text style={s.sectionLabel}>POUR COMMENCER</Text>{['Prépare un documentaire à partir de mes médias','Aide-moi à construire un clip musical','Crée le scénario d’un court-métrage'].map((v,i)=><Pressable key={i} style={s.suggestion} onPress={()=>setDraft(v)}><Feather name="star" size={16} color={C.violet}/><Text style={s.suggestionText}>{v}</Text><Feather name="arrow-up-right" size={15} color={C.dim}/></Pressable>)}</View>
      </View>:<View style={s.messages}>{messages.map(m=><View key={m.id} style={[s.message,m.role==='user'?s.userMessage:s.assistantMessage]}><Text style={s.messageRole}>{m.role==='user'?'VOUS':'GALINGTOSH'}</Text><Text style={s.messageText}>{m.text}</Text></View>)}{busy?<View style={s.assistantMessage}><ActivityIndicator color={C.violet}/><Text style={[s.messageText,{marginTop:8}]}>Galingtosh analyse votre demande…</Text></View>:null}</View>}
     </ScrollView>
+    {uploading?<Text style={[s.muted,{textAlign:'center',padding:8}]}>Import du média en cours…</Text>:null}
     {attachments.length>0?<ScrollView horizontal style={s.attachmentStrip}>{attachments.map(a=><Pressable key={a.path} style={s.attachmentChip} onPress={()=>setAttachments(v=>v.filter(x=>x.path!==a.path))}><Feather name="paperclip" size={13} color={C.violet}/><Text numberOfLines={1} style={s.attachmentName}>{a.name}</Text><Feather name="x" size={13} color={C.muted}/></Pressable>)}</ScrollView>:null}
-    <View style={s.composer}><Pressable style={s.attachButton} onPress={addAttachment} accessibilityRole="button" accessibilityLabel="Joindre un média"><Feather name="paperclip" size={23} color={C.muted}/></Pressable><TextInput value={draft} onChangeText={setDraft} placeholder="Écrivez votre message..." placeholderTextColor={C.dim} style={s.composerInput} multiline maxLength={5000} blurOnSubmit={false} returnKeyType="default" textAlignVertical="center" scrollEnabled/><Pressable onPress={sendMessage} disabled={busy||(!draft.trim()&&!attachments.length)} accessibilityRole="button" accessibilityLabel="Envoyer le message"><LinearGradient colors={['#8C43FF','#5D22E8']} style={s.sendButton}><Feather name="send" size={21} color="#FFF"/></LinearGradient></Pressable></View>
+    <View style={s.composer}><Pressable style={s.attachButton} onPress={addAttachment} accessibilityRole="button" accessibilityLabel="Joindre un média"><Feather name="paperclip" size={23} color={C.muted}/></Pressable><TextInput value={draft} onChangeText={setDraft} placeholder="Écrivez votre message..." placeholderTextColor={C.dim} style={s.composerInput} multiline maxLength={5000} blurOnSubmit={false} returnKeyType="default" textAlignVertical="center" scrollEnabled/><Pressable onPress={sendMessage} disabled={busy||uploading||loadingProject||(!draft.trim()&&!attachments.length)} accessibilityRole="button" accessibilityLabel="Envoyer le message"><LinearGradient colors={['#8C43FF','#5D22E8']} style={s.sendButton}><Feather name="send" size={21} color="#FFF"/></LinearGradient></Pressable></View>
      </KeyboardAvoidingView>:null}
    {tab==='projects'?<ScrollView contentContainerStyle={s.pageContent}>
     <Text style={s.kicker}>VOTRE ESPACE DE TRAVAIL</Text><Text style={s.pageTitle}>Mes projets</Text><Text style={s.pageDesc}>Retrouvez vos productions et reprenez votre travail.</Text>
-    <Button title="Nouveau projet" onPress={()=>setProjectModal(true)} icon="plus"/>
-    {projects.length===0?<Panel style={s.emptyPanel}><Feather name="film" size={34} color={C.dim}/><Text style={s.cardTitle}>Aucun projet enregistré</Text><Text style={s.muted}>Vos projets apparaîtront ici après leur création.</Text></Panel>:projects.map(p=><Pressable key={p.id} onPress={()=>{setActiveProjectId(p.id);setTab('studio');}}><Panel style={s.projectCard}><View style={s.projectIcon}><Feather name="film" size={21} color={C.violet}/></View><View style={{flex:1}}><Text style={s.cardTitle}>{p.titre}</Text><Text style={s.cardSub}>{p.brief||'Aucune description'} · {p.statut||'Projet'}</Text><Text style={s.cardMeta}>Version {p.version??1} {p.format?'· '+p.format:''}</Text></View><Feather name="chevron-right" size={19} color={C.dim}/></Panel></Pressable>)}
-    {activeProject?<Panel style={s.renderPanel}><Text style={s.sectionLabel}>PRODUCTION</Text><Text style={s.cardTitle}>{activeProject.titre}</Text><Button title="Lancer le rendu vidéo" onPress={()=>startRender(activeProject.id)} loading={busy} icon="play"/>{job&&job.project_id===activeProject.id?<View style={s.jobBox}><Text style={s.cardSub}>Rendu : {job.status} · {job.progress||0}%</Text><View style={s.progressTrack}><View style={[s.progressFill,{width:((Math.max(0,Math.min(100,job.progress||0)))+'%') as any}]}/></View>{job.error?<Text style={s.cardSub}>Un problème est survenu pendant cette production.</Text>:null}{job.output_path?<Button title="Ouvrir la vidéo MP4" onPress={()=>openRender(job.output_path)} secondary icon="download"/>:null}</View>:null}</Panel>:null}
-    <Text style={s.sectionLabel}>RENDU RÉCENT</Text>{jobs.slice(0,8).map(j=><Panel key={j.id} style={s.jobRow}><View style={{flex:1}}><Text style={s.cardTitle}>Production · v{j.film_version}</Text><Text style={s.cardSub}>{j.status} · {j.progress||0}%</Text></View>{j.output_path?<Pressable onPress={()=>openRender(j.output_path)}><Feather name="download" size={20} color={C.violet}/></Pressable>:null}</Panel>)}
+    <Button title="Actualiser" secondary onPress={()=>{setPageError('');loadProjects();loadJobs(activeProjectId||undefined);}} icon="refresh-cw"/><Button title="Nouveau projet" onPress={()=>{if(!user){setTab('account');return;}setProjectModal(true);}} icon="plus"/>
+    {projects.length===0?<Panel style={s.emptyPanel}><Feather name="film" size={34} color={C.dim}/><Text style={s.cardTitle}>Aucun projet enregistré</Text><Text style={s.muted}>Vos projets apparaîtront ici après leur création.</Text></Panel>:projects.map(p=><Pressable key={p.id} onPress={()=>openProject(p.id)}><Panel style={s.projectCard}><View style={s.projectIcon}><Feather name="film" size={21} color={C.violet}/></View><View style={{flex:1}}><Text style={s.cardTitle}>{p.title}</Text><Text style={s.cardSub}>{p.type}</Text><Text style={s.cardMeta}>Mis à jour le {new Date(p.updated_at).toLocaleDateString('fr-FR')}</Text></View><Feather name="chevron-right" size={19} color={C.dim}/></Panel></Pressable>)}
+    {activeProject?<Panel style={s.renderPanel}><Text style={s.sectionLabel}>PRODUCTION</Text><Text style={s.cardTitle}>{activeProject.title}</Text><Button title="Lancer le rendu vidéo" onPress={()=>Alert.alert('Produire la vidéo ?', 'Le rendu utilisera la version actuelle du film. Vous pourrez continuer le montage pendant la production.',[{text:'Annuler',style:'cancel'},{text:'Lancer',onPress:()=>startRender(activeProject.id)}])} loading={renderBusy} disabled={busy||loadingProject||!!jobs.find(j=>j.project_id===activeProject.id&&['queued','running'].includes(j.status))} icon="play"/>{job&&job.project_id===activeProject.id?<View style={s.jobBox}><Text style={s.cardSub}>Rendu : {JOB_LABELS[job.status]||job.status} · {job.progress||0}%</Text><View style={s.progressTrack}><View style={[s.progressFill,{width:((Math.max(0,Math.min(100,job.progress||0)))+'%') as any}]}/></View>{job.error?<Text style={s.cardSub}>{job.error}</Text>:null}{job.warnings?.map((w,i)=><Text key={i} style={[s.cardSub,{color:C.amber}]}>{w}</Text>)}{['queued','running'].includes(job.status)?<Button title="Annuler le rendu" secondary onPress={()=>Alert.alert('Annuler cette production ?','Le montage sera conservé.',[{text:'Continuer',style:'cancel'},{text:'Annuler le rendu',style:'destructive',onPress:async()=>{const {error}=await supabase.rpc('cancel_render',{p_job_id:job.id});if(error)Alert.alert('Annulation impossible','Réessayez.');else loadJobs(activeProjectId||undefined);}}])}/>:null}{job.output_path?<Button title="Ouvrir la vidéo MP4" onPress={()=>openRender(job.output_path)} secondary icon="download"/>:null}</View>:null}</Panel>:null}
+    <Text style={s.sectionLabel}>RENDU RÉCENT</Text>{jobs.slice(0,8).map(j=><Panel key={j.id} style={s.jobRow}><View style={{flex:1}}><Text style={s.cardTitle}>Production · v{j.film_version}</Text><Text style={s.cardSub}>{JOB_LABELS[j.status]||j.status} · {j.progress||0}%</Text>{j.error?<Text style={[s.cardSub,{color:C.red}]}>{j.error}</Text>:null}{j.warnings?.map((w,i)=><Text key={i} style={[s.cardSub,{color:C.amber}]}>{w}</Text>)}</View>{j.output_path?<Pressable onPress={()=>openRender(j.output_path)}><Feather name="download" size={20} color={C.violet}/></Pressable>:null}</Panel>)}
    </ScrollView>:null}
-   {tab==='media'?<ScrollView contentContainerStyle={s.pageContent}><Text style={s.kicker}>RESSOURCES AUTORISÉES</Text><Text style={s.pageTitle}>Médiathèque</Text><Text style={s.pageDesc}>Catalogue des médias disponibles et de leurs licences.</Text><Button title="Joindre un média à une conversation" onPress={()=>{setTab('studio');addAttachment();}} icon="paperclip"/>{assets.length===0?<Panel style={s.emptyPanel}><Feather name="image" size={32} color={C.dim}/><Text style={s.cardTitle}>Aucun média dans le catalogue</Text><Text style={s.muted}>Les médias autorisés apparaîtront ici lorsqu’ils seront référencés dans la base.</Text></Panel>:assets.map(a=><Panel key={a.id} style={s.assetCard}>{a.proxy_url&&a.type==='image'?<Image source={{uri:a.proxy_url}} style={s.assetImage}/>:<View style={s.assetIcon}><Feather name={a.type==='video'?'video':a.type==='audio'?'music':'image'} size={23} color={C.violet}/></View>}<View style={{flex:1}}><Text style={s.cardTitle}>{a.titre||'Média sans titre'}</Text><Text style={s.cardSub}>{a.type} · {a.source_kind}</Text><Text style={s.cardMeta}>{a.licence||'Licence non précisée'} · {a.licence_ok?'Utilisable':'À vérifier'}</Text></View><Text style={s.score}>{a.score??'—'}</Text></Panel>)}</ScrollView>:null}
+   {tab==='media'?<ScrollView contentContainerStyle={s.pageContent}><Text style={s.kicker}>RESSOURCES AUTORISÉES</Text><Text style={s.pageTitle}>Médiathèque</Text><Text style={s.pageDesc}>Catalogue des médias disponibles et de leurs licences.</Text><Button title="Actualiser les médias" secondary onPress={()=>loadAssets(activeProjectId)} icon="refresh-cw"/><Button title="Joindre un média à une conversation" onPress={()=>{setTab('studio');addAttachment();}} icon="paperclip"/>{assets.length===0?<Panel style={s.emptyPanel}><Feather name="image" size={32} color={C.dim}/><Text style={s.cardTitle}>Aucun média dans le catalogue</Text><Text style={s.muted}>Les médias autorisés apparaîtront ici lorsqu’ils seront référencés dans la base.</Text></Panel>:assets.map(a=><Panel key={a.id} style={s.assetCard}>{a.preview&&a.kind==='image'?<Image source={{uri:a.preview}} style={s.assetImage}/>:<View style={s.assetIcon}><Feather name={a.kind==='video'?'video':a.kind==='audio'?'music':'image'} size={23} color={C.violet}/></View>}<View style={{flex:1}}><Text style={s.cardTitle}>{a.provenance?.title||a.analysis?.original_name||'Média importé'}</Text><Text style={s.cardSub}>{a.kind} · {a.source}</Text><Text style={s.cardMeta}>{a.license||'Droits à vérifier'}</Text><Text style={s.cardMeta}>{a.provenance?.author||'Import personnel'}</Text>{a.provenance?.restrictions?.map((r:string,i:number)=><Text key={i} style={[s.cardMeta,{color:C.amber}]}>{r}</Text>)}{a.provenance?.url&&/^https?:\/\//.test(a.provenance.url)?<Pressable onPress={()=>Linking.openURL(a.provenance.url).catch(()=>Alert.alert('Lien indisponible','Impossible d’ouvrir la source.'))}><Text style={s.link}>Consulter la source et la licence</Text></Pressable>:null}</View><Pressable accessibilityLabel="Joindre ce média" onPress={()=>{if(a.project_id!==activeProjectId){Alert.alert('Autre projet','Ouvrez le projet de ce média pour le joindre.');return;}if(attachments.length>=10)return;setAttachments(v=>v.some(x=>x.id===a.id)?v:[...v,{id:a.id,path:a.storage_path||a.id,name:a.provenance?.title||a.analysis?.original_name||'Média'}]);setTab('studio');}}><Feather name="plus-circle" size={24} color={C.violet}/></Pressable></Panel>)}</ScrollView>:null}
    {tab==='account'?<ScrollView contentContainerStyle={s.pageContent}><Text style={s.kicker}>PRÉFÉRENCES</Text><Text style={s.pageTitle}>Compte & paramètres</Text>
+    {recovery&&user?<Panel><Text style={s.cardTitle}>Nouveau mot de passe</Text><Field value={newPassword} onChangeText={setNewPassword} placeholder="Au moins 8 caractères" secureTextEntry/><Button title="Enregistrer le mot de passe" loading={authBusy} onPress={savePassword}/></Panel>:null}
     {!user?<Panel style={s.authPanel}><Text style={s.cardTitle}>{authMode==='login'?'Connexion à Galingtosh':'Créer un compte'}</Text><Text style={s.cardSub}>Utilisez votre adresse Gmail ou votre compte Google.</Text><Field value={email} onChangeText={setEmail} placeholder="Adresse e-mail" autoCapitalize="none" keyboardType="email-address" style={{marginTop:18}}/><Field value={password} onChangeText={setPassword} placeholder="Mot de passe" secureTextEntry style={{marginTop:10}}/><Button title={authMode==='login'?'Se connecter':'Créer mon compte'} onPress={signIn} loading={authBusy}/><Button title="Continuer avec Google" onPress={googleAuth} secondary loading={authBusy} icon="chrome"/><Pressable onPress={()=>setAuthMode(v=>v==='login'?'signup':'login')}><Text style={s.link}>{authMode==='login'?'Créer un compte':'J’ai déjà un compte'}</Text></Pressable>{authMode==='login'?<Pressable onPress={resetPassword}><Text style={s.forgot}>Mot de passe oublié ?</Text></Pressable>:null}</Panel>:<Panel style={s.authPanel}><View style={s.accountRow}><View style={s.avatar}><Text style={s.avatarText}>{(user.email||'G').slice(0,1).toUpperCase()}</Text></View><View style={{flex:1}}><Text style={s.cardTitle}>{user.email||'Compte Galingtosh'}</Text><Text style={s.cardSub}>Session authentifiée</Text></View></View><Button title="Se déconnecter" onPress={signOut} secondary icon="log-out"/></Panel>}
     <Text style={s.footer}>GALINGTOSH · ANDROID{ '\n'}Une création Dan Production</Text>
    </ScrollView>:null}
   </View>
   {!keyboardVisible&&<View style={s.nav}>{([{id:'studio',label:'Studio',icon:'message-circle'},{id:'projects',label:'Projets',icon:'film'},{id:'media',label:'Médias',icon:'grid'}] as const).map(item=><Pressable key={item.id} onPress={()=>setTab(item.id)} style={s.navItem}><Feather name={item.icon as any} size={20} color={tab===item.id?C.violet:C.dim}/><Text style={[s.navText,tab===item.id&&{color:C.text}]}>{item.label}</Text>{tab===item.id?<View style={s.navIndicator}/>:null}</Pressable>)}</View>}
 
+  <Modal visible={showFilm} animationType="slide" onRequestClose={()=>setShowFilm(false)}><SafeAreaView style={s.filmModal}><View style={s.modalHeader}><Text style={s.cardTitle}>Montage · version {filmVersion}</Text><Button title="Fermer" secondary onPress={()=>setShowFilm(false)}/></View><ScrollView contentContainerStyle={{paddingVertical:16,gap:12}}>{film?<><Text style={s.cardTitle}>{film.info?.title}</Text><Text style={s.cardSub}>{film.info?.synopsis||'Décrivez votre idée au Studio.'}</Text><Text style={s.cardMeta}>{film.format?.aspect} · {film.render?.resolution} · {film.format?.fps} images/s</Text>{(film.scenes||[]).length===0?<Text style={s.muted}>Aucune scène. Demandez à l’assistant de construire le scénario et les plans.</Text>:null}{[...(film.scenes||[])].sort((a,b)=>a.order-b.order).map((scene:any)=><Panel key={scene.id}><Text style={s.cardTitle}>{scene.order}. {scene.title}</Text><Text style={s.cardSub}>{scene.narrativeGoal}</Text><Text style={s.cardMeta}>{scene.durationSec} secondes · {scene.shots?.length||0} plans</Text>{(scene.shots||[]).map((shot:any)=><View key={shot.id} style={{paddingTop:12}}><Text style={s.cardSub}>Plan {shot.order} · {shot.inSec}–{shot.outSec} s · {shot.camera?.type||'none'}</Text><Text style={[s.cardMeta,!shot.mediaRef&&{color:C.amber}]}>{shot.mediaRef?'Média associé':'Média manquant : demandez à l’assistant de compléter ce plan.'}</Text></View>)}</Panel>)}<Text style={s.cardSub}>{film.audio?.tracks?.length||0} pistes audio · {film.subtitles?.length||0} pistes de sous-titres</Text><Button title="Modifier avec le Studio" onPress={()=>{setShowFilm(false);setTab('studio');}}/></>:<Text style={s.muted}>Le film est en cours de chargement ou n’a pas encore été créé.</Text>}</ScrollView></SafeAreaView></Modal>
   <Modal visible={projectModal} transparent animationType="fade" onRequestClose={()=>setProjectModal(false)}><View style={s.modalRoot}><Pressable style={s.scrim} onPress={()=>setProjectModal(false)}/><View style={s.modalCard}><Text style={s.cardTitle}>Créer un projet</Text><Text style={s.cardSub}>Définissez le titre et l’idée de départ.</Text><Field value={projectTitle} onChangeText={setProjectTitle} placeholder="Titre du projet" style={{marginTop:18}}/><Field value={projectBrief} onChangeText={setProjectBrief} placeholder="Décrivez brièvement votre idée…" multiline style={{marginTop:10,minHeight:90}}/><Button title="Créer le projet" onPress={createProject} loading={savingProject} disabled={!projectTitle.trim()}/><Button title="Annuler" onPress={()=>setProjectModal(false)} secondary/></View></View></Modal>
 
  </SafeAreaView></SafeAreaProvider>;
@@ -233,3 +315,4 @@ export default function App(){
 const s=StyleSheet.create({
  safe:{flex:1,backgroundColor:C.bg},flex:{flex:1},main:{flex:1},header:{height:70,paddingHorizontal:21,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},brand:{flexDirection:'row',alignItems:'center',gap:11},brandName:{fontSize:21,fontWeight:'800',color:C.text,letterSpacing:-.4},brandSub:{fontSize:8,color:C.dim,fontWeight:'800',letterSpacing:1.25,marginTop:3},headerButton:{width:44,height:44,borderRadius:22,backgroundColor:C.surface2,borderWidth:1,borderColor:C.border,alignItems:'center',justifyContent:'center'},glowTop:{position:'absolute',width:320,height:320,borderRadius:180,backgroundColor:'#5417A5',opacity:.17,top:-220,right:-130},glowBottom:{position:'absolute',width:330,height:330,borderRadius:180,backgroundColor:'#3613A0',opacity:.14,bottom:-220,left:-190},errorBanner:{marginHorizontal:16,backgroundColor:'#391A2A',padding:9,borderRadius:10},errorText:{color:C.red,fontSize:11},loading:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:C.bg},muted:{color:C.muted,fontSize:12,marginTop:10},chatContent:{flexGrow:1,paddingHorizontal:19,paddingTop:12,paddingBottom:20},center:{justifyContent:'center'},welcome:{alignItems:'center',width:'100%'},heroOuter:{width:160,height:160,borderRadius:80,alignItems:'center',justifyContent:'center',backgroundColor:'#171027',borderWidth:1,borderColor:'#382453',marginBottom:25},heroGlow:{position:'absolute',width:220,height:220,borderRadius:120,backgroundColor:'#6322B9',opacity:.13},hero:{width:112,height:112,borderRadius:56,alignItems:'center',justifyContent:'center'},welcomeText:{fontSize:24,lineHeight:34,color:'#D8CFF0',fontWeight:'400',textAlign:'center'},welcomeSub:{fontSize:12,color:C.dim,marginTop:9,letterSpacing:.5},suggestions:{width:'100%',marginTop:30,gap:9},sectionLabel:{fontSize:9,color:C.dim,fontWeight:'900',letterSpacing:1.45,marginBottom:11},suggestion:{minHeight:48,borderRadius:14,borderWidth:1,borderColor:C.border,backgroundColor:C.surface,flexDirection:'row',alignItems:'center',gap:10,paddingHorizontal:13},suggestionText:{flex:1,color:C.muted,fontSize:12},messages:{gap:12,paddingBottom:18},message:{maxWidth:'90%',padding:14,borderRadius:17},userMessage:{alignSelf:'flex-end',backgroundColor:'#34205D',borderBottomRightRadius:5},assistantMessage:{alignSelf:'flex-start',backgroundColor:C.surface,borderWidth:1,borderColor:C.border,borderBottomLeftRadius:5,padding:14},messageRole:{fontSize:9,color:C.violet,fontWeight:'900',letterSpacing:1.2,marginBottom:6},messageText:{fontSize:14,color:C.text,lineHeight:21},composer:{marginHorizontal:14,marginBottom:8,minHeight:62,maxHeight:118,borderRadius:30,borderWidth:1.5,borderColor:'#55456E',backgroundColor:'#151220',flexDirection:'row',alignItems:'center',paddingHorizontal:12,gap:8},attachButton:{width:38,height:45,alignItems:'center',justifyContent:'center'},composerInput:{flex:1,minHeight:42,maxHeight:92,color:C.text,fontSize:14,paddingVertical:8,includeFontPadding:false},sendButton:{width:46,height:46,borderRadius:24,alignItems:'center',justifyContent:'center'},disclaimer:{color:C.dim,fontSize:9,textAlign:'center',marginBottom:7,marginHorizontal:18},attachmentStrip:{maxHeight:39,marginHorizontal:15,marginBottom:6},attachmentChip:{height:32,borderRadius:16,backgroundColor:C.surface2,borderWidth:1,borderColor:C.border,flexDirection:'row',alignItems:'center',gap:6,paddingHorizontal:10,marginRight:7},attachmentName:{color:C.muted,fontSize:10,maxWidth:130},nav:{height:64,backgroundColor:'#0E0C18',borderTopWidth:1,borderTopColor:C.border,flexDirection:'row',alignItems:'center',justifyContent:'space-around'},navItem:{flex:1,height:'100%',alignItems:'center',justifyContent:'center',gap:4},navText:{fontSize:9,color:C.dim,fontWeight:'800'},navIndicator:{position:'absolute',top:0,width:25,height:2,borderRadius:2,backgroundColor:C.violet},pageContent:{padding:21,paddingBottom:42},kicker:{fontSize:9,color:C.violet,fontWeight:'900',letterSpacing:1.5,marginTop:9},pageTitle:{fontSize:29,color:C.text,fontWeight:'800',marginTop:7},pageDesc:{fontSize:13,color:C.muted,lineHeight:20,marginTop:7,marginBottom:22},button:{minHeight:48,borderRadius:15,backgroundColor:C.purple,paddingHorizontal:15,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:9,marginTop:9},buttonSecondary:{backgroundColor:C.surface2,borderWidth:1,borderColor:C.border},buttonText:{color:C.text,fontSize:13,fontWeight:'800'},panel:{backgroundColor:C.surface,borderWidth:1,borderColor:C.border,borderRadius:18,padding:15},emptyPanel:{alignItems:'center',paddingVertical:32,marginTop:20,gap:10},cardTitle:{fontSize:14,color:C.text,fontWeight:'800'},cardSub:{fontSize:11,color:C.muted,lineHeight:17,marginTop:4},cardMeta:{fontSize:9,color:C.dim,marginTop:5},projectCard:{flexDirection:'row',alignItems:'center',gap:12,marginTop:10},projectIcon:{width:43,height:43,borderRadius:13,backgroundColor:C.surface3,alignItems:'center',justifyContent:'center'},renderPanel:{marginTop:18,borderColor:'#49316F'},jobBox:{marginTop:12},progressTrack:{height:6,backgroundColor:C.surface3,borderRadius:4,marginTop:8,overflow:'hidden'},progressFill:{height:6,backgroundColor:C.violet,borderRadius:4},jobRow:{marginTop:8,flexDirection:'row',alignItems:'center'},assetCard:{marginTop:9,flexDirection:'row',alignItems:'center',gap:11},assetIcon:{width:42,height:42,borderRadius:13,backgroundColor:C.surface3,alignItems:'center',justifyContent:'center'},assetImage:{width:48,height:48,borderRadius:12,backgroundColor:C.surface3},score:{fontSize:11,color:C.violet,fontWeight:'900'},authPanel:{marginTop:10},field:{minHeight:49,borderRadius:14,borderWidth:1,borderColor:C.border,backgroundColor:C.surface2,paddingHorizontal:14,color:C.text,fontSize:14},multiline:{minHeight:100,paddingTop:12,textAlignVertical:'top'},link:{textAlign:'center',color:C.violet,fontWeight:'800',fontSize:12,marginTop:17},forgot:{textAlign:'center',color:C.muted,fontSize:11,marginTop:13},smallNote:{fontSize:10,color:C.dim,lineHeight:16,marginTop:13,textAlign:'center'},accountRow:{flexDirection:'row',alignItems:'center',gap:12,marginBottom:12},avatar:{width:44,height:44,borderRadius:22,backgroundColor:C.surface3,alignItems:'center',justifyContent:'center'},avatarText:{fontSize:17,color:C.violet,fontWeight:'900'},serviceRow:{flexDirection:'row',justifyContent:'space-between',paddingVertical:11,borderBottomWidth:1,borderBottomColor:C.border},serviceValue:{fontSize:11,fontWeight:'800'},footer:{fontSize:9,color:C.dim,textAlign:'center',letterSpacing:1.1,lineHeight:17,marginTop:25},modalRoot:{flex:1,justifyContent:'center',padding:20},scrim:{...StyleSheet.absoluteFillObject,backgroundColor:'rgba(0,0,0,.72)'},modalCard:{backgroundColor:C.surface,borderWidth:1,borderColor:C.border,borderRadius:22,padding:19},filmModal:{flex:1,backgroundColor:C.bg,padding:18},modalHeader:{height:50,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderBottomWidth:1,borderBottomColor:C.border},filmJson:{fontFamily:Platform.OS==='ios'?'Menlo':'monospace',fontSize:10,color:'#D6C9F2',lineHeight:16,paddingVertical:16}
 });
+

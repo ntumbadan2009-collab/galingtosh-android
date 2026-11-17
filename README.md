@@ -48,6 +48,16 @@ npx expo start
 
 ## APK Android
 
-Le workflow GitHub Actions `.github/workflows/android-apk.yml` vérifie TypeScript, valide la configuration Expo, génère le projet Android et compile un APK debug. Le fichier est publié comme artefact `galingtosh-debug-apk` pour 14 jours après une compilation réussie.
+Le workflow GitHub Actions `.github/workflows/android-apk.yml` vérifie TypeScript, valide la configuration Expo, génère le projet Android et compile un APK debug. Le fichier est publié comme artefact `galingtosh-release-apk` pour 14 jours après une compilation réussie.
 
 Package Android : `com.danproduction.galingtosh`.
+
+
+## Version 1.0.1 — réparation du parcours de production
+Le client utilise les colonnes existantes `projects.title/user_id` et `media_assets.kind/source/storage_path/license`. La création appelle `create_studio_project` pour enregistrer le projet et son film ensemble. Le serveur Supabase doit disposer de la migration versionnée dans le dépôt moteur.
+
+Ouvrir un projet restaure ses 100 derniers messages visibles et réinitialise les pièces jointes et la conversation précédentes. Le bouton **Scènes** présente le montage de travail. Les imports sont limités aux formats et aux 50 Mo autorisés par Storage, enregistrés dans `media_assets`, puis joints à l’agent par identifiant. Le suivi des productions reprend au lancement et affiche erreurs, avertissements et annulation.
+
+La récupération de compte prend en charge les liens `galingtosh://auth/callback` et l’enregistrement d’un nouveau mot de passe. Le lien doit être autorisé dans la configuration Auth de Supabase et ouvert sur l’appareil qui a demandé la récupération.
+
+Validation : `npm run typecheck`, export Metro/Hermes Android. Le workflow GitHub Actions construit l’APK ARM avec le JavaScript embarqué et le publie dans l’artefact **galingtosh-release-apk**. L’installation et le parcours connecté sur un téléphone restent une validation distincte de la compilation.
