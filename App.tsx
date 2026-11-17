@@ -286,7 +286,7 @@ export default function App(){
   </View>}
   {pageError? <Pressable onPress={()=>setPageError('')} style={s.errorBanner}><Text style={s.errorText}>{pageError}  ×</Text></Pressable>:null}
   <View style={s.main}>
-   {tab==='studio'?<KeyboardAvoidingView style={s.flex} behavior={Platform.OS==='ios'?'padding':undefined} keyboardVerticalOffset={0}>
+   {tab==='studio'?<KeyboardAvoidingView style={s.flex} behavior="padding" keyboardVerticalOffset={0}>
     <View style={s.projectToolbar}><View style={{flex:1}}><Text style={s.sectionLabel}>{activeProject?'PROJET':'ESPACE DE TRAVAIL'}</Text><Text numberOfLines={1} style={s.projectName}>{activeProject?.title||'Aucun projet sélectionné'}</Text></View>{activeProjectId?<Pressable style={s.scenesButton} onPress={()=>{setShowFilm(true);loadFilm(activeProjectId).catch(()=>setPageError('Impossible de charger le film.'));}}><Feather name="layers" size={16} color={C.violet}/><Text style={s.scenesText}>Scènes</Text></Pressable>:<Pressable style={s.scenesButton} onPress={()=>setTab('projects')}><Feather name="folder" size={16} color={C.violet}/><Text style={s.scenesText}>Projets</Text></Pressable>}</View>
     {loadingProject?<ActivityIndicator color={C.violet}/>:null}
     <ScrollView ref={chatScroll} onContentSizeChange={()=>chatScroll.current?.scrollToEnd({animated:true})} style={s.flex} contentContainerStyle={[s.chatContent,messages.length===0&&s.center]} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS==='ios'?'interactive':'on-drag'}>
