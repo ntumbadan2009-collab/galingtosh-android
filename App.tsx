@@ -1,6 +1,7 @@
 import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {ActivityIndicator,Alert,AppState,FlatList,Image,Keyboard,KeyboardAvoidingView,Linking,Modal,Platform,Pressable,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from 'react-native';
+import {ActivityIndicator,Alert,AppState,FlatList,Image,Keyboard,Linking,Modal,Platform,Pressable,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from 'react-native';
 import {SafeAreaProvider,SafeAreaView} from 'react-native-safe-area-context';
+import {KeyboardProvider,KeyboardStickyView} from 'react-native-keyboard-controller';
 import {StatusBar as ExpoStatusBar} from 'expo-status-bar';
 import {Feather,Ionicons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
@@ -27,6 +28,10 @@ function Field({value,onChangeText,placeholder,multiline=false,secureTextEntry=f
 function Panel({children,style}:any){return <View style={[s.panel,style]}>{children}</View>;}
 
 export default function App(){
+ return <KeyboardProvider preload={false}><AppContent/></KeyboardProvider>;
+}
+
+function AppContent(){
  const [tab,setTab]=useState<Tab>('studio');
  const [session,setSession]=useState<any>(null);
  const [authReady,setAuthReady]=useState(false);
@@ -286,7 +291,7 @@ export default function App(){
   </View>}
   {pageError? <Pressable onPress={()=>setPageError('')} style={s.errorBanner}><Text style={s.errorText}>{pageError}  ×</Text></Pressable>:null}
   <View style={s.main}>
-   {tab==='studio'?<KeyboardAvoidingView style={s.flex} behavior="padding" keyboardVerticalOffset={0}>
+   {tab==='studio'?<View style={s.flex}>
     <View style={s.projectToolbar}><View style={{flex:1}}><Text style={s.sectionLabel}>{activeProject?'PROJET':'ESPACE DE TRAVAIL'}</Text><Text numberOfLines={1} style={s.projectName}>{activeProject?.title||'Aucun projet sélectionné'}</Text></View>{activeProjectId?<Pressable style={s.scenesButton} onPress={()=>{setShowFilm(true);loadFilm(activeProjectId).catch(()=>setPageError('Impossible de charger le film.'));}}><Feather name="layers" size={16} color={C.violet}/><Text style={s.scenesText}>Scènes</Text></Pressable>:<Pressable style={s.scenesButton} onPress={()=>setTab('projects')}><Feather name="folder" size={16} color={C.violet}/><Text style={s.scenesText}>Projets</Text></Pressable>}</View>
     {loadingProject?<ActivityIndicator color={C.violet}/>:null}
     <ScrollView ref={chatScroll} onContentSizeChange={()=>chatScroll.current?.scrollToEnd({animated:true})} style={s.flex} contentContainerStyle={[s.chatContent,messages.length===0&&s.center]} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS==='ios'?'interactive':'on-drag'}>
@@ -296,10 +301,11 @@ export default function App(){
       <View style={s.suggestions}><Text style={s.sectionLabel}>OU CHOISIS UN POINT DE DÉPART</Text>{['Je veux raconter une histoire','Je prépare un documentaire','Je crée une vidéo pour les réseaux'].map((v,i)=><Pressable key={i} style={s.suggestion} onPress={()=>setDraft(v)}><Feather name={['book-open','video','smartphone'][i] as any} size={16} color={C.violet}/><Text style={s.suggestionText}>{v}</Text><Feather name="arrow-up-right" size={15} color={C.dim}/></Pressable>)}</View>
      </View>:<View style={s.messages}>{messages.map(m=>m.role==='user'?<View key={m.id} style={[s.message,s.userMessage]}><Text style={s.messageText}>{m.text}</Text></View>:<View key={m.id} style={s.assistantRow}><BrandMark size={25}/><View style={s.assistantBody}><Text style={s.assistantName}>Galingtosh</Text><Text style={s.messageText}>{m.text}</Text></View></View>)}{busy?<View style={s.assistantRow}><BrandMark size={25}/><View style={s.assistantBody}><Text style={s.assistantName}>Galingtosh</Text><View style={s.thinking}><ActivityIndicator color={C.violet} size="small"/><Text style={s.thinkingText}>Je réfléchis à ta demande…</Text></View></View></View>:null}</View>}
     </ScrollView>
-    {uploading?<Text style={[s.muted,{textAlign:'center',padding:8}]}>Import du média en cours…</Text>:null}
+    <KeyboardStickyView style={{backgroundColor:C.bg}}>
+     {uploading?<Text style={[s.muted,{textAlign:'center',padding:8}]}>Import du média en cours…</Text>:null}
     {attachments.length>0?<ScrollView horizontal style={s.attachmentStrip}>{attachments.map(a=><Pressable key={a.path} style={s.attachmentChip} onPress={()=>setAttachments(v=>v.filter(x=>x.path!==a.path))}><Feather name="paperclip" size={13} color={C.violet}/><Text numberOfLines={1} style={s.attachmentName}>{a.name}</Text><Feather name="x" size={13} color={C.muted}/></Pressable>)}</ScrollView>:null}
     <View style={s.composer}><Pressable style={s.attachButton} onPress={addAttachment} accessibilityRole="button" accessibilityLabel="Joindre un média"><Feather name="paperclip" size={23} color={C.muted}/></Pressable><TextInput value={draft} onChangeText={setDraft} placeholder="Écrivez votre message..." placeholderTextColor={C.dim} style={s.composerInput} multiline maxLength={5000} blurOnSubmit={false} returnKeyType="default" textAlignVertical="center" scrollEnabled/><Pressable onPress={sendMessage} disabled={busy||uploading||loadingProject||(!draft.trim()&&!attachments.length)} accessibilityRole="button" accessibilityLabel="Envoyer le message"><LinearGradient colors={['#8C43FF','#5D22E8']} style={s.sendButton}><Feather name="send" size={21} color="#FFF"/></LinearGradient></Pressable></View>
-     </KeyboardAvoidingView>:null}
+     </KeyboardStickyView></View>:null}
    {tab==='projects'?<ScrollView contentContainerStyle={s.pageContent}>
     <Text style={s.kicker}>VOTRE ESPACE DE TRAVAIL</Text><Text style={s.pageTitle}>Mes projets</Text><Text style={s.pageDesc}>Retrouvez vos productions et reprenez votre travail.</Text>
     <Button title="Actualiser" secondary onPress={()=>{setPageError('');loadProjects();loadJobs(activeProjectId||undefined);}} icon="refresh-cw"/><Button title="Nouveau projet" onPress={()=>{if(!user){setTab('account');return;}setProjectModal(true);}} icon="plus"/>
