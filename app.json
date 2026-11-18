@@ -2,7 +2,7 @@
   "expo": {
     "name": "Galingtosh",
     "slug": "galingtosh",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
@@ -10,7 +10,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.danproduction.galingtosh",
-      "versionCode": 6,
+      "versionCode": 7,
       "icon": "./assets/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",

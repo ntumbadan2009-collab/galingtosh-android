@@ -26,6 +26,26 @@ function BrandMark({size=43}:{size?:number}){return <LinearGradient colors={['#F
 function Button({title,onPress,secondary=false,loading=false,disabled=false,icon}:{title:string;onPress:()=>void;secondary?:boolean;loading?:boolean;disabled?:boolean;icon?:any}){return <Pressable onPress={onPress} disabled={disabled||loading} style={({pressed})=>[s.button,secondary&&s.buttonSecondary,(pressed||disabled)&&{opacity:.55}]}>{loading?<ActivityIndicator color={C.text}/>:icon?<Feather name={icon} size={17} color={secondary?C.violet:'#FFF'}/>:null}<Text style={s.buttonText}>{title}</Text></Pressable>;}
 function Field({value,onChangeText,placeholder,multiline=false,secureTextEntry=false,keyboardType='default',autoCapitalize='sentences',style}:any){return <TextInput value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={C.dim} multiline={multiline} secureTextEntry={secureTextEntry} keyboardType={keyboardType} autoCapitalize={autoCapitalize} textAlignVertical={multiline?'top':'center'} selectionColor={C.violet} style={[s.field,multiline&&s.multiline,style]}/>;}
 function Panel({children,style}:any){return <View style={[s.panel,style]}>{children}</View>;}
+function inlineMarkdown(value:string,keyPrefix:string){
+ const parts=value.split(/(\*\*[^*\n]+?\*\*|__[^_\n]+?__|`[^`\n]+`|\*[^*\n]+?\*|_[^_\n]+?_)/g).filter(Boolean);
+ return parts.map((part,index)=>{
+  if(part.startsWith('**')||part.startsWith('__'))return <Text key={keyPrefix+index} style={{fontWeight:'800'}}>{part.slice(2,-2)}</Text>;
+  if(part.startsWith('`'))return <Text key={keyPrefix+index} style={{fontFamily:Platform.OS==='ios'?'Menlo':'monospace',color:C.violet}}>{part.slice(1,-1)}</Text>;
+  if(part.startsWith('*')||part.startsWith('_'))return <Text key={keyPrefix+index} style={{fontStyle:'italic'}}>{part.slice(1,-1)}</Text>;
+  return part;
+ });
+}
+function AssistantMessage({text}:{text:string}){
+ const blocks=text.trim().split(/\n{2,}/).filter(Boolean);
+ return <View style={{gap:10}}>{blocks.map((block,blockIndex)=>{
+  const lines=block.split('\n').filter(line=>line.trim());
+  const items=lines.map(line=>({line,match:line.match(/^\s*(?:(- |\* |• )|(\d+[.)]\s+))(.+)$/)}));
+  if(items.length&&items.every(item=>item.match))return <View key={'list'+blockIndex} style={{gap:6}}>{items.map((item,index)=>{const m=item.match!;const marker=m[2]?.trim()||'•';return <View key={'item'+index} style={{flexDirection:'row',alignItems:'flex-start',gap:7}}><Text style={{color:C.violet,fontSize:15,fontWeight:'800',minWidth:18}}>{marker}</Text><Text style={[s.messageText,{flex:1}]}>{inlineMarkdown(m[3],`i${blockIndex}-${index}-`)}</Text></View>;})}</View>;
+  const heading=block.match(/^#{1,3}\s+(.+)$/);
+  const content=heading?heading[1]:lines.join(' ');
+  return <Text key={'p'+blockIndex} style={[s.messageText,heading&&{fontWeight:'800',fontSize:16}]}>{inlineMarkdown(content,`p${blockIndex}-`)}</Text>;
+ })}</View>;
+}
 
 export default function App(){
  return <KeyboardProvider preload={false}><AppContent/></KeyboardProvider>;
@@ -299,7 +319,7 @@ function AppContent(){
       <View style={s.welcomeMark}><BrandMark size={43}/><View style={s.onlineDot}/></View>
       <Text style={s.welcomeText}>On commence par ton idée.</Text><Text style={s.welcomeSub}>Décris ce que tu veux raconter. On construira le film ensemble, étape par étape.</Text>
       <View style={s.suggestions}><Text style={s.sectionLabel}>OU CHOISIS UN POINT DE DÉPART</Text>{['Je veux raconter une histoire','Je prépare un documentaire','Je crée une vidéo pour les réseaux'].map((v,i)=><Pressable key={i} style={s.suggestion} onPress={()=>setDraft(v)}><Feather name={['book-open','video','smartphone'][i] as any} size={16} color={C.violet}/><Text style={s.suggestionText}>{v}</Text><Feather name="arrow-up-right" size={15} color={C.dim}/></Pressable>)}</View>
-     </View>:<View style={s.messages}>{messages.map(m=>m.role==='user'?<View key={m.id} style={[s.message,s.userMessage]}><Text style={s.messageText}>{m.text}</Text></View>:<View key={m.id} style={s.assistantRow}><BrandMark size={25}/><View style={s.assistantBody}><Text style={s.assistantName}>Galingtosh</Text><Text style={s.messageText}>{m.text}</Text></View></View>)}{busy?<View style={s.assistantRow}><BrandMark size={25}/><View style={s.assistantBody}><Text style={s.assistantName}>Galingtosh</Text><View style={s.thinking}><ActivityIndicator color={C.violet} size="small"/><Text style={s.thinkingText}>Je réfléchis à ta demande…</Text></View></View></View>:null}</View>}
+     </View>:<View style={s.messages}>{messages.map(m=>m.role==='user'?<View key={m.id} style={[s.message,s.userMessage]}><Text style={s.messageText}>{m.text}</Text></View>:<View key={m.id} style={s.assistantRow}><BrandMark size={25}/><View style={s.assistantBody}><Text style={s.assistantName}>Galingtosh</Text><AssistantMessage text={m.text}/></View></View>)}{busy?<View style={s.assistantRow}><BrandMark size={25}/><View style={s.assistantBody}><Text style={s.assistantName}>Galingtosh</Text><View style={s.thinking}><ActivityIndicator color={C.violet} size="small"/><Text style={s.thinkingText}>Je réfléchis à ta demande…</Text></View></View></View>:null}</View>}
     </ScrollView>
     <KeyboardStickyView style={{backgroundColor:C.bg}}>
      {uploading?<Text style={[s.muted,{textAlign:'center',padding:8}]}>Import du média en cours…</Text>:null}
