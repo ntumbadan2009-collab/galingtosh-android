@@ -10,6 +10,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as WebBrowser from 'expo-web-browser';
 import {supabase,supabaseConfigured,SUPABASE_URL} from './src/lib/supabase';
 import {sendToAgent,recoverAgentResponse} from './src/lib/ai';
+import {buildActivityTurns,type ActivityRow,type ActivityTurn} from './src/lib/agentActivity';
 import {getRenderDownloadUrl,getRenderJob,listRenderJobs,requestRender,RenderJob} from './src/lib/render';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -47,6 +48,43 @@ function AssistantMessage({text}:{text:string}){
  })}</View>;
 }
 
+function AgentJournal({turns,busy,stale}:{turns:ActivityTurn[];busy:boolean;stale:boolean}){
+ const [expanded,setExpanded]=useState(false);
+ const [showHistory,setShowHistory]=useState(false);
+ const withEvents=turns.filter(t=>t.events.length>0);
+ const latest=turns[turns.length-1];
+ const latestEvents=latest?.events||[];
+ const historical=withEvents.filter(t=>t.id!==latest?.id).reverse();
+ const displayed=showHistory?[...(latestEvents.length?[latest!]:[]),...historical]:latestEvents.length?[latest!]:[];
+ const done=latestEvents.filter(e=>e.status==='done').length;
+ const failures=latestEvents.filter(e=>e.status==='failed').length;
+ if(!busy&&!withEvents.length&&!stale)return null;
+ const open=busy||expanded;
+ return <View style={{marginVertical:7,borderWidth:1,borderColor:C.border,borderRadius:15,backgroundColor:C.surface,overflow:'hidden'}}>
+  <Pressable accessibilityRole="button" accessibilityLabel="Journal des actions de Galingtosh" accessibilityState={{expanded:open}} onPress={()=>setExpanded(v=>!v)} disabled={busy} style={{flexDirection:'row',alignItems:'center',gap:9,padding:12}}>
+   {busy?<ActivityIndicator size="small" color={C.violet}/>:<Feather name="activity" size={19} color={C.violet}/>}
+   <View style={{flex:1,gap:3}}><Text style={{color:C.text,fontWeight:'700',fontSize:14}}>Activité de Galingtosh</Text><Text style={{color:C.muted,fontSize:12}}>{busy?'Actions enregistrées par le serveur':latestEvents.length?`${done} confirmée(s)${failures?` · ${failures} en échec`:''}`:'Journal des demandes précédentes'}</Text></View>
+   {!busy?<Feather name={open?'chevron-up':'chevron-down'} size={18} color={C.muted}/>:null}
+  </Pressable>
+  {open?<View style={{padding:12,paddingTop:0,gap:10}}>
+   {stale?<Text style={{color:C.amber,fontSize:12}}>Actualisation indisponible. Les dernières actions reçues restent affichées.</Text>:null}
+   {!latestEvents.length&&busy?<Text style={{color:C.muted,fontSize:12}}>En attente des premières actions enregistrées par le serveur…</Text>:null}
+   {displayed.map((turn,index)=><View key={turn.id} style={{gap:9}}>
+    {showHistory?<Text style={{color:C.dim,fontSize:11}}>{turn.id===latest?.id?'Dernière demande':`Demande précédente · ${new Date(turn.time).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}`}</Text>:null}
+    {turn.events.map(e=><View key={e.id} style={{flexDirection:'row',alignItems:'flex-start',gap:9}}>
+     <Feather name={e.status==='done'?'check-circle':e.status==='failed'?'alert-circle':'clock'} size={16} color={e.status==='done'?C.green:e.status==='failed'?C.amber:C.dim} style={{marginTop:2}}/>
+     <View style={{flex:1,gap:2}}><Text style={{color:C.text,fontSize:13,fontWeight:'600'}}>{e.label}</Text>
+      {e.detail?<Text style={{color:C.muted,fontSize:12}}>{e.detail}</Text>:null}
+      <Text style={{color:e.status==='failed'?C.amber:C.dim,fontSize:11}}>{e.status==='done'?(e.name==='request_render'?'Demande enregistrée — rendu distinct':'Action confirmée'):e.status==='failed'?'Action en échec':'Résultat non confirmé'}</Text>
+     </View>
+    </View>)}
+   </View>)}
+   {historical.length>0?<Pressable accessibilityRole="button" accessibilityState={{expanded:showHistory}} onPress={()=>setShowHistory(v=>!v)} style={{paddingVertical:6}}><Text style={{color:C.violet,fontWeight:'600',fontSize:12}}>{showHistory?'Masquer les demandes précédentes':`Voir les demandes précédentes (${historical.length})`}</Text></Pressable>:null}
+   <Text style={{color:C.dim,fontSize:11}}>Le journal décrit les opérations, pas le raisonnement interne ni un pourcentage estimé.</Text>
+  </View>:null}
+ </View>;
+}
+
 export default function App(){
  return <KeyboardProvider preload={false}><AppContent/></KeyboardProvider>;
 }
@@ -60,6 +98,8 @@ function AppContent(){
  const [draft,setDraft]=useState('');
  const [busy,setBusy]=useState(false);
  const [conversationId,setConversationId]=useState<string|null>(null);
+ const [activity,setActivity]=useState<{conversationId:string;rows:ActivityRow[];stale:boolean}|null>(null);
+ const activityTurns=useMemo(()=>activity&&activity.conversationId===conversationId?buildActivityTurns(activity.rows):[],[activity,conversationId]);
  const [activeProjectId,setActiveProjectId]=useState<string|null>(null);
  const [projects,setProjects]=useState<Project[]>([]);
  const [assets,setAssets]=useState<Asset[]>([]);
@@ -171,6 +211,34 @@ function AppContent(){
   return ()=>{sub.remove();clearInterval(timer);};
  },[user?.id,activeProjectId,loadJobs]);
 
+ // The existing messages table is protected by owner-only RLS. Read metadata
+ // instead of raw tool payloads. Refresh while this Studio is in use, with
+ // no overlapping reads and no stale results crossing project boundaries.
+ useEffect(()=>{
+  if(!user||!conversationId||tab!=='studio')return;
+  const currentId=conversationId;
+  const epoch=requestEpoch.current;
+  let disposed=false,reading=false;
+  const refresh=async()=>{
+   if(disposed||reading||AppState.currentState!=='active')return;
+   reading=true;
+   try{
+    const {data,error}=await supabase.from('messages').select('id,role,created_at,metadata')
+     .eq('conversation_id',currentId).eq('user_id',user.id)
+     .order('created_at',{ascending:false}).order('id',{ascending:false}).limit(250);
+    if(disposed||epoch!==requestEpoch.current)return;
+    if(error)throw error;
+    setActivity({conversationId:currentId,rows:((data||[]) as ActivityRow[]).reverse(),stale:false});
+   }catch{
+    if(!disposed&&epoch===requestEpoch.current)setActivity(old=>({conversationId:currentId,rows:old?.conversationId===currentId?old.rows:[],stale:true}));
+   }finally{reading=false;}
+  };
+  void refresh();
+  const sub=AppState.addEventListener('change',state=>{if(state==='active')void refresh();});
+  const timer=busy?setInterval(()=>void refresh(),2500):null;
+  return()=>{disposed=true;sub.remove();if(timer)clearInterval(timer);};
+ },[user?.id,conversationId,tab,busy]);
+
  async function handleAuthUrl(url:string){
   if(!url.startsWith(REDIRECT)||handledUrls.current.has(url))return;
   handledUrls.current.add(url);
@@ -265,8 +333,18 @@ function AppContent(){
   if(!supabaseConfigured||!user){Alert.alert('Connexion requise','Connectez-vous avec votre compte Galingtosh avant d’utiliser le Studio.');setTab('account');return;}
   const epoch=requestEpoch.current;const attached=[...attachments];setMessages(m=>[...m,{id:String(Date.now()),role:'user',text:text||'Média joint',}]);
   setDraft('');setAttachments([]);setBusy(true);
+  let requestConversationId=conversationId;
   try{
-   const result=await sendToAgent(text||'Analyse les médias joints et aide-moi à préparer mon film.',activeProjectId,attached.map(a=>a.id),conversationId);
+   // Start the owned conversation first, so activity is available even on
+   // the first request, before the HTTP response from chat-agent returns.
+   if(!requestConversationId){
+    const {data,error}=await supabase.from('conversations').insert({user_id:user.id,project_id:activeProjectId,title:(text||'Média joint').slice(0,60)}).select('id').single();
+    if(error||!data?.id)throw new Error('Impossible de préparer la conversation.');
+    if(epoch!==requestEpoch.current)return;
+    requestConversationId=data.id;
+    setConversationId(requestConversationId);
+   }
+   const result=await sendToAgent(text||'Analyse les médias joints et aide-moi à préparer mon film.',activeProjectId,attached.map(a=>a.id),requestConversationId);
    if(epoch!==requestEpoch.current)return;
    setMessages(m=>[...m,{id:String(Date.now()+1),role:'assistant',text:result.reply}]);
    if(result.conversation_id)setConversationId(result.conversation_id);
@@ -281,7 +359,7 @@ function AppContent(){
    try{
     recovered=await recoverAgentResponse(
      text||'Analyse les médias joints et aide-moi à préparer mon film.',
-     activeProjectId,conversationId
+     activeProjectId,requestConversationId
     );
    }catch{/* The network may also be unavailable for recovery. */}
    if(epoch!==requestEpoch.current)return;
@@ -347,7 +425,7 @@ function AppContent(){
       <View style={s.welcomeMark}><BrandMark size={43}/><View style={s.onlineDot}/></View>
       <Text style={s.welcomeText}>On commence par ton idée.</Text><Text style={s.welcomeSub}>Décris ce que tu veux raconter. On construira le film ensemble, étape par étape.</Text>
       <View style={s.suggestions}><Text style={s.sectionLabel}>OU CHOISIS UN POINT DE DÉPART</Text>{['Je veux raconter une histoire','Je prépare un documentaire','Je crée une vidéo pour les réseaux'].map((v,i)=><Pressable key={i} style={s.suggestion} onPress={()=>setDraft(v)}><Feather name={['book-open','video','smartphone'][i] as any} size={16} color={C.violet}/><Text style={s.suggestionText}>{v}</Text><Feather name="arrow-up-right" size={15} color={C.dim}/></Pressable>)}</View>
-     </View>:<View style={s.messages}>{messages.map(m=>m.role==='user'?<View key={m.id} style={[s.message,s.userMessage]}><Text style={s.messageText}>{m.text}</Text></View>:<View key={m.id} style={s.assistantRow}><BrandMark size={25}/><View style={s.assistantBody}><Text style={s.assistantName}>Galingtosh</Text><AssistantMessage text={m.text}/></View></View>)}{busy?<View style={s.assistantRow}><BrandMark size={25}/><View style={s.assistantBody}><Text style={s.assistantName}>Galingtosh</Text><View style={s.thinking}><ActivityIndicator color={C.violet} size="small"/><Text style={s.thinkingText}>Je réfléchis à ta demande…</Text></View></View></View>:null}</View>}
+     </View>:<View style={s.messages}>{messages.map(m=>m.role==='user'?<View key={m.id} style={[s.message,s.userMessage]}><Text style={s.messageText}>{m.text}</Text></View>:<View key={m.id} style={s.assistantRow}><BrandMark size={25}/><View style={s.assistantBody}><Text style={s.assistantName}>Galingtosh</Text><AssistantMessage text={m.text}/></View></View>)}{(busy||activityTurns.some(t=>t.events.length)||activity?.conversationId===conversationId&&activity?.stale)?<View style={s.assistantRow}><BrandMark size={25}/><View style={s.assistantBody}><AgentJournal key={conversationId||'new'} turns={activityTurns} busy={busy} stale={Boolean(activity?.conversationId===conversationId&&activity?.stale)}/></View></View>:null}</View>}
     </ScrollView>
     <KeyboardStickyView style={{backgroundColor:C.bg}}>
      <View style={{backgroundColor:C.bg}}>
