@@ -8,3 +8,40 @@ export async function sendToAgent(message:string,projectId?:string|null,attachme
  return data as AgentResult;
 }
 
+
+/**
+ * Reconcile a request whose HTTP response was lost after the server committed
+ * its conversation messages. Never re-run a mutation merely because the
+ * network failed: doing so can duplicate scenes, media and render requests.
+ */
+export async function recoverAgentResponse(
+ message:string,projectId:string|null,conversationId:string|null
+):Promise<AgentResult|null>{
+ let candidates:string[]=[];
+ if(conversationId)candidates=[conversationId];
+ else if(projectId){
+  const {data,error}=await supabase.from('conversations')
+   .select('id').eq('project_id',projectId)
+   .order('created_at',{ascending:false}).limit(3);
+  if(error)throw error;
+  candidates=(data||[]).map(row=>row.id);
+ }
+ for(const id of candidates){
+  const {data,error}=await supabase.from('messages')
+   .select('role,content,created_at').eq('conversation_id',id)
+   .in('role',['user','assistant'])
+   .order('created_at',{ascending:false}).limit(80);
+  if(error)throw error;
+  const rows=data||[];
+  // Newest exact user request is the only one eligible for recovery.
+  // If it has no later assistant response, we must not return a stale answer.
+  const requestIndex=rows.findIndex(row=>row.role==='user'&&row.content===message);
+  if(requestIndex<0)continue;
+  const reply=rows.slice(0,requestIndex).find(row=>row.role==='assistant'&&row.content?.trim());
+  if(reply)return {
+   reply:reply.content,conversation_id:id,project_id:projectId,
+  };
+  return null;
+ }
+ return null;
+}
