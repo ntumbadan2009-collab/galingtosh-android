@@ -9,7 +9,7 @@ import {File} from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
 import * as WebBrowser from 'expo-web-browser';
 import {supabase,supabaseConfigured,SUPABASE_URL} from './src/lib/supabase';
-import {sendToAgent} from './src/lib/ai';
+import {sendToAgent,recoverAgentResponse} from './src/lib/ai';
 import {getRenderDownloadUrl,getRenderJob,listRenderJobs,requestRender,RenderJob} from './src/lib/render';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -272,7 +272,34 @@ function AppContent(){
    if(result.conversation_id)setConversationId(result.conversation_id);
    if(result.project_id){setActiveProjectId(result.project_id);loadProjects();await Promise.all([loadFilm(result.project_id),loadAssets(result.project_id)]);}
    if(result.render_job_id){const next=await getRenderJob(result.render_job_id);setJob(next);loadJobs(result.project_id||activeProjectId||undefined);}
-  }catch(e:any){if(epoch!==requestEpoch.current)return;setDraft(text);setAttachments(attached);setPageError(e.message||'La réponse n’a pas pu être reçue. Vérifiez le projet avant de renvoyer : certaines opérations peuvent avoir été enregistrées.');}
+  }catch(e:any){
+   if(epoch!==requestEpoch.current)return;
+   // A lost HTTP response is not evidence that the agent failed. Recover the
+   // last persisted reply first so the user does not accidentally duplicate
+   // scenes, audio tracks or render requests by pressing Send again.
+   let recovered=null;
+   try{
+    recovered=await recoverAgentResponse(
+     text||'Analyse les médias joints et aide-moi à préparer mon film.',
+     activeProjectId,conversationId
+    );
+   }catch{/* The network may also be unavailable for recovery. */}
+   if(epoch!==requestEpoch.current)return;
+   if(recovered){
+    setMessages(m=>[...m,{id:'recovered-'+Date.now(),role:'assistant',text:recovered!.reply}]);
+    if(recovered.conversation_id)setConversationId(recovered.conversation_id);
+    if(recovered.project_id){
+     await Promise.allSettled([loadFilm(recovered.project_id),loadAssets(recovered.project_id)]);
+    }
+    setPageError('');
+   }else{
+    // Do not silently resend a mutating instruction. Reopen the project to
+    // fetch operations committed after the response was lost.
+    setDraft('');
+    setAttachments([]);
+    setPageError('La connexion à l’agent a été interrompue. La demande a peut-être continué côté serveur. Rouvrez le projet pour récupérer les modifications avant de donner une nouvelle instruction.');
+   }
+  }
   finally{setBusy(false);}
  }
 
