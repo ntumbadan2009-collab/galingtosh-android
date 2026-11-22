@@ -12,17 +12,76 @@ function Brand({small=false}:{small?:boolean}){return <div className={'brand '+(
 function IconButton({icon:Icon,label,onClick,disabled}:{icon:LucideIcon;label:string;onClick:()=>void;disabled?:boolean}){return <button className="icon-button" aria-label={label} title={label} onClick={onClick} disabled={disabled}><Icon size={19}/></button>}
 function Empty({icon:Icon,title,desc}:{icon:LucideIcon;title:string;desc:string}){return <div className="empty"><span className="empty-icon"><Icon size={29}/></span><h3>{title}</h3><p>{desc}</p></div>}
 function Alert({text,onClose}:{text:string;onClose:()=>void}){return <div className="notice" role="alert"><AlertCircle size={17}/><span>{text}</span><button aria-label="Fermer le message" onClick={onClose}><X size={17}/></button></div>}
-function Auth({onAuth}:{onAuth:()=>void}){
- const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[signup,setSignup]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[success,setSuccess]=useState('');
- async function submit(e:FormEvent){e.preventDefault();setError('');setSuccess('');setBusy(true);try{
-  if(!email.includes('@')||password.length<6)throw Error('Saisis une adresse e-mail et un mot de passe valide.');
-  if(signup){const{data,error}=await db.auth.signUp({email,password});if(error)throw error;if(data.session)onAuth();else setSuccess('Vérifie ta boîte e-mail pour confirmer le compte.');}
-  else{const{error}=await db.auth.signInWithPassword({email,password});if(error)throw error;onAuth();}
- }catch(e){setError(e instanceof Error?e.message:'Authentification impossible.');}finally{setBusy(false)}}
- return <div className="auth-page"><div className="auth-aurora"/><div className="auth-layout"><section className="auth-story"><Brand/><div className="hero-pill"><Sparkles size={15}/> L'intelligence au service de votre imagination</div><h1>Une idée.<br/><span>Un film.</span><br/>Votre studio.</h1><p>Concevez vos histoires, orchestrez les scènes, organisez les médias et retrouvez vos productions dans un espace créatif unique.</p><div className="auth-benefits"><span><CheckCircle2 size={18}/> Studio intelligent</span><span><CheckCircle2 size={18}/> Projets synchronisés</span><span><CheckCircle2 size={18}/> Production audiovisuelle</span></div></section><section className="auth-box"><div className="auth-box-icon"><Film size={26}/></div><h2>{signup?'Créer un compte':'Retrouver votre Studio'}</h2><p>Connectez-vous avec le même compte que sur votre application Android.</p><form onSubmit={submit}><label>Adresse e-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="votre@email.com" required autoComplete="email"/></label><label>Mot de passe<input type="password" minLength={6} value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" required autoComplete={signup?'new-password':'current-password'}/></label>{error&&<div className="auth-error" role="alert">{error}</div>}{success&&<div className="auth-success">{success}</div>}<button className="primary full" disabled={busy} type="submit">{busy?<LoaderCircle className="spin" size={18}/>:<ArrowRight size={18}/>} {signup?"Créer mon compte":"Se connecter"}</button></form><button className="link-button" onClick={()=>{setSignup(v=>!v);setError('');setSuccess('')}}>{signup?'Déjà un compte ? Se connecter':'Nouveau ici ? Créer un compte'}</button><div className="secure-note"><ShieldCheck size={16}/> Vos projets restent privés et synchronisés via Supabase.</div></section></div></div>;
+
+function Auth({onAuth,recoveryMode=false,onRecoveryComplete,initialError=''}:{
+ onAuth:()=>void;recoveryMode?:boolean;onRecoveryComplete?:()=>void;initialError?:string
+}){
+ const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[confirmPassword,setConfirmPassword]=useState('');
+ const[signup,setSignup]=useState(false),[forgot,setForgot]=useState(false),[showPassword,setShowPassword]=useState(false);
+ const[busy,setBusy]=useState(false),[error,setError]=useState(initialError),[success,setSuccess]=useState(''),[resetDone,setResetDone]=useState(false);
+ const changeMode=(next:'login'|'signup'|'forgot')=>{setSignup(next==='signup');setForgot(next==='forgot');setError('');setSuccess('');setPassword('');setConfirmPassword('');setShowPassword(false);};
+ async function submit(e:FormEvent){
+  e.preventDefault();if(busy)return;setError('');setSuccess('');setBusy(true);
+  try{
+   if(recoveryMode){
+    if(password.length<8)throw Error('Le nouveau mot de passe doit contenir au moins 8 caractères.');
+    if(password!==confirmPassword)throw Error('Les deux mots de passe ne correspondent pas.');
+    const{error}=await db.auth.updateUser({password});
+    if(error)throw error;
+    setResetDone(true);setSuccess('Votre mot de passe a été mis à jour.');
+    setPassword('');setConfirmPassword('');
+   }else if(forgot){
+    if(!email.trim()||!email.includes('@'))throw Error('Saisissez une adresse e-mail valide.');
+    const{error}=await db.auth.resetPasswordForEmail(email.trim(),{redirectTo:'https://galingtosh.online/'});
+    if(error)throw error;
+    setSuccess('Si cette adresse correspond à un compte, un lien de réinitialisation vous sera envoyé. Consultez aussi les courriers indésirables.');
+   }else{
+    if(!email.includes('@')||password.length<6)throw Error('Saisissez une adresse e-mail et un mot de passe valides.');
+    if(signup){
+     const{data,error}=await db.auth.signUp({email:email.trim(),password});
+     if(error)throw error;
+     if(data.session)onAuth();
+     else setSuccess('Vérifiez votre boîte e-mail pour confirmer votre compte.');
+    }else{
+     const{error}=await db.auth.signInWithPassword({email:email.trim(),password});
+     if(error)throw error;
+     onAuth();
+    }
+   }
+  }catch(e){setError(e instanceof Error?e.message:'Opération impossible. Réessayez.');}
+  finally{setBusy(false);}
+ }
+ const title=recoveryMode?'Définir un nouveau mot de passe':forgot?'Mot de passe oublié ?':signup?'Créer un compte':'Retrouver votre Studio';
+ const action=recoveryMode?'Enregistrer le nouveau mot de passe':forgot?'Envoyer le lien':signup?'Créer mon compte':'Se connecter';
+ return <div className="auth-page"><div className="auth-aurora"/><div className="auth-layout">
+  <section className="auth-story"><Brand/><div className="hero-pill"><Sparkles size={15}/> L'intelligence au service de votre imagination</div><h1>Une idée.<br/><span>Un film.</span><br/>Votre studio.</h1><p>Concevez vos histoires, orchestrez les scènes, organisez les médias et retrouvez vos productions dans un espace créatif unique.</p><div className="auth-benefits"><span><CheckCircle2 size={18}/> Studio intelligent</span><span><CheckCircle2 size={18}/> Projets synchronisés</span><span><CheckCircle2 size={18}/> Production audiovisuelle</span></div></section>
+  <section className="auth-box"><div className="auth-box-icon"><Film size={26}/></div><h2>{title}</h2>
+   <p>{recoveryMode?'Choisissez un mot de passe sécurisé pour retrouver votre espace.':forgot?'Nous vous enverrons un lien pour réinitialiser votre mot de passe.':'Connectez-vous avec le même compte que sur votre application Android.'}</p>
+   <form onSubmit={submit}>
+    {!recoveryMode&&<label>Adresse e-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="votre@email.com" required autoComplete="email"/></label>}
+    {!forgot&&<label>{recoveryMode?'Nouveau mot de passe':'Mot de passe'}
+     <span className="password-field">
+      <input type={showPassword?'text':'password'} minLength={recoveryMode?8:6} value={password} onChange={e=>setPassword(e.target.value)} placeholder={recoveryMode?'8 caractères minimum':'••••••••'} required autoComplete={recoveryMode||signup?'new-password':'current-password'}/>
+      <button type="button" className="password-toggle" aria-label={showPassword?'Masquer le mot de passe':'Afficher le mot de passe'} onClick={()=>setShowPassword(v=>!v)}>{showPassword?'Masquer':'Afficher'}</button>
+     </span>
+    </label>}
+    {recoveryMode&&<label>Confirmer le nouveau mot de passe<input type={showPassword?'text':'password'} minLength={8} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Répétez le mot de passe" required autoComplete="new-password"/></label>}
+    {error&&<div className="auth-error" role="alert">{error}</div>}
+    {success&&<div className="auth-success" role="status">{success}</div>}
+    {!resetDone&&<button className="primary full" disabled={busy} type="submit">{busy?<LoaderCircle className="spin" size={18}/>:<ArrowRight size={18}/>} {action}</button>}
+   </form>
+   {resetDone&&<button type="button" className="primary full auth-continue" onClick={onRecoveryComplete}><ArrowRight size={18}/> Accéder au Studio</button>}
+   {!recoveryMode&&<div className="auth-links">
+    {forgot?<button type="button" className="link-button" onClick={()=>changeMode('login')}>Retour à la connexion</button>:
+     <><button type="button" className="link-button" onClick={()=>changeMode(signup?'login':'signup')}>{signup?'Déjà un compte ? Se connecter':'Nouveau ici ? Créer un compte'}</button>
+       {!signup&&<button type="button" className="link-button" onClick={()=>changeMode('forgot')}>Mot de passe oublié ?</button>}</>}
+   </div>}
+   <div className="secure-note"><ShieldCheck size={16}/> Vos projets restent privés et synchronisés via Supabase.</div>
+  </section>
+ </div></div>;
 }
 export function App(){
- const[user,setUser]=useState<SessionUser|null>(null),[authReady,setAuthReady]=useState(false);
+ const[user,setUser]=useState<SessionUser|null>(null),[authReady,setAuthReady]=useState(false),[recoveryMode,setRecoveryMode]=useState(false),[authLoadError,setAuthLoadError]=useState('');
  const[tab,setTab]=useState<Tab>('studio'),[sidebarOpen,setSidebarOpen]=useState(false);
  const[projects,setProjects]=useState<Project[]>([]),[jobs,setJobs]=useState<Render[]>([]),[assets,setAssets]=useState<Asset[]>([]);
  const[projectId,setProjectId]=useState<string|null>(null),[conversationId,setConversationId]=useState<string|null>(null);
@@ -62,7 +121,27 @@ export function App(){
     .includes(mediaSearch.trim().toLocaleLowerCase('fr'))
  ),[assets,mediaFilter,mediaSearch]);
  const alertError=(e:unknown)=>setError(e instanceof Error?e.message:'Opération impossible. Vérifie ta connexion.');
- useEffect(()=>{let mounted=true;void db.auth.getSession().then(({data})=>{if(mounted){setUser(data.session?.user?{id:data.session.user.id,email:data.session.user.email}:null);setAuthReady(true);}});const{subscription}=db.auth.onAuthStateChange((_event,session)=>{if(mounted){setUser(session?.user?{id:session.user.id,email:session.user.email}:null);setAuthReady(true);}}).data;return()=>{mounted=false;subscription.unsubscribe();}},[]);
+ useEffect(()=>{
+  let mounted=true;
+  void db.auth.getSession().then(({data,error})=>{
+   if(!mounted)return;
+   if(error)setAuthLoadError('Impossible de récupérer la session. Vérifiez votre connexion, puis reconnectez-vous.');
+   setUser(data.session?.user?{id:data.session.user.id,email:data.session.user.email}:null);
+   setAuthReady(true);
+  }).catch(()=>{
+   if(!mounted)return;
+   setAuthLoadError('Impossible de vérifier votre session. Vous pouvez réessayer de vous connecter.');
+   setAuthReady(true);
+  });
+  const{subscription}=db.auth.onAuthStateChange((event,session)=>{
+   if(!mounted)return;
+   setUser(session?.user?{id:session.user.id,email:session.user.email}:null);
+   setAuthReady(true);
+   if(event==='PASSWORD_RECOVERY')setRecoveryMode(true);
+   if(event==='SIGNED_OUT')setRecoveryMode(false);
+  }).data;
+  return()=>{mounted=false;subscription.unsubscribe();};
+ },[]);
  const refreshGlobal=useCallback(async()=>{if(!user)return;try{const [p,j,a]=await Promise.all([listProjects(),listRenders(),listAssets()]);setProjects(p);setJobs(j);setAssets(a);}catch(e){alertError(e);}},[user?.id]);
  const refreshProject=useCallback(async(id:string,includeHistory=false)=>{
   try{
@@ -165,7 +244,8 @@ export function App(){
  async function renameProject(){const id=projectMenuId||projectId;if(!id||!renameValue.trim()||actionBusy||!user)return;setActionBusy(true);try{const{error}=await db.from('projects').update({title:renameValue.trim()}).eq('id',id).eq('user_id',user.id);if(error)throw error;setProjectMenu(false);setProjectMenuId(null);await refreshGlobal();}catch(e){alertError(e)}finally{setActionBusy(false)}}
  async function logout(){await db.auth.signOut();setDialog(null);setUser(null);}
  if(!authReady)return <div className="boot"><Brand/><LoaderCircle className="spin"/></div>;
- if(!user)return <Auth onAuth={()=>void refreshGlobal()}/>;
+ if(recoveryMode)return <Auth recoveryMode onAuth={()=>void refreshGlobal()} onRecoveryComplete={()=>setRecoveryMode(false)}/>;
+ if(!user)return <Auth onAuth={()=>void refreshGlobal()} initialError={authLoadError}/>;
  return <div className="shell">
   {sidebarOpen&&<div className="mobile-scrim" onClick={()=>setSidebarOpen(false)}/>}
   <aside className={'sidebar '+(sidebarOpen?'sidebar-open':'')}>
