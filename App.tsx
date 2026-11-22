@@ -559,10 +559,10 @@ function AppContent(){
  return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top','left','right','bottom']}><ExpoStatusBar style="light"/><StatusBar barStyle="light-content" backgroundColor={C.bg}/>
   <LinearGradient colors={['#080611','#090714','#07050D']} style={StyleSheet.absoluteFill}/>
   <View pointerEvents="none" style={[s.glowTop,{opacity:.07}]}/>
-  {tab==='studio'&&!keyboardVisible?<View style={s.studioToolbar}>
+  {tab==='studio'?(!keyboardVisible?<View style={s.studioToolbar}>
    <Pressable style={s.toolbarBrand} onPress={()=>setTab('studio')}><BrandMark size={35}/><Text style={s.toolbarTitle}>Galingtosh</Text></Pressable>
    <View style={s.toolbarActions}><Pressable style={s.toolbarButton} onPress={startNewConversation} accessibilityRole="button" accessibilityLabel="Nouvelle conversation"><Feather name="edit-3" size={19} color={C.text}/></Pressable><Pressable style={s.toolbarButton} onPress={()=>setTab('account')} accessibilityRole="button" accessibilityLabel="Ouvrir les paramètres"><Feather name="settings" size={19} color={C.muted}/></Pressable></View>
-  </View>:<View style={s.header}>
+  </View>:null):<View style={s.header}>
    <Pressable style={s.brand} onPress={()=>setTab('studio')}><BrandMark/><View><Text style={s.brandName}>Galingtosh</Text><Text style={s.brandSub}>CRÉEZ · MONTEZ · PARTAGEZ</Text></View></Pressable>
    <Pressable style={s.headerButton} onPress={()=>setTab('account')}><Feather name="settings" size={22} color={C.muted}/></Pressable>
   </View>}
