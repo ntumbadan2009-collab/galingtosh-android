@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useMemo,useRef,useState,type FormEvent,type ChangeEvent} from 'react';
-import {Activity,ArrowRight,Check,CheckCircle2,ChevronDown,ChevronRight,Clapperboard,Clock3,Download,Edit3,ExternalLink,Film,FolderOpen,Grid2X2,Image as ImageIcon,Layers3,LoaderCircle,LogOut,MessageCircle,MoreVertical,Music2,Paperclip,Pause,Play,Plus,Send,Settings2,ShieldCheck,Sparkles,Video,X,AlertCircle,Copy} from 'lucide-react';
+import {Activity,ArrowRight,Check,CheckCircle2,ChevronDown,ChevronRight,CirclePlus,Clapperboard,Clock3,Download,Edit3,ExternalLink,Film,FolderOpen,Grid2X2,Image as ImageIcon,Layers3,LoaderCircle,LogOut,MessageCircle,MoreVertical,Music2,Paperclip,Pause,Play,Plus,Send,Settings,Settings2,ShieldCheck,Sparkles,Video,X,AlertCircle,Copy} from 'lucide-react';
 import type {LucideIcon} from 'lucide-react';
 // Import the same pure, security-filtered activity parser used by Android.
 import {buildActivityTurns,type ActivityTurn} from './agentActivity';
@@ -185,7 +185,7 @@ export function App(){
     <div className="brand-with-tagline"><Brand small/>{tab!=='studio'&&<span className="android-tagline">CRÉEZ · MONTEZ · PARTAGEZ</span>}</div>
     <div className="top-actions">
      {tab==='studio'&&<button className="android-action" aria-label="Nouvelle conversation" title="Nouvelle conversation" onClick={startNewConversation}><Edit3 size={24}/></button>}
-     <button className="android-action" aria-label="Paramètres" title="Paramètres" onClick={()=>setDialog('settings')}><Settings2 size={24}/></button>
+     <button className="android-action" aria-label="Paramètres" title="Paramètres" onClick={()=>setDialog('settings')}><Settings size={24}/></button>
     </div>
    </header>
    {error&&<Alert text={error} onClose={()=>setError('')}/>}
@@ -299,7 +299,7 @@ export function App(){
     <div className="android-media-title"><h1>Médias</h1><button className="project-add" aria-label="Importer un média" title="Importer un média" onClick={()=>{
      if(!projectId){setError('Ouvre d’abord un projet pour y importer un média.');setTab('projects');return;}
      uploadInput.current?.click();
-    }}><Plus size={27}/></button></div>
+    }}><CirclePlus size={27}/></button></div>
     <div className="project-search"><input aria-label="Rechercher un média" placeholder="Rechercher un média" value={mediaSearch} onChange={e=>setMediaSearch(e.target.value)}/></div>
     <div className="project-filters media-filters" role="group" aria-label="Filtrer les médias">
      {([{id:'all',label:'Tous'},{id:'image',label:'Images'},{id:'video',label:'Vidéos'},{id:'audio',label:'Audio'}] as const).map(f=><button type="button" key={f.id} aria-pressed={mediaFilter===f.id} className={'project-filter '+(mediaFilter===f.id?'is-active':'')} onClick={()=>setMediaFilter(f.id)}>{f.label}</button>)}
