@@ -6,7 +6,7 @@ export type MissionTask={step_no:number;kind:string;status:'started'|'done'|'fai
 export const activeProduction=(m:ProductionMission|null|undefined)=>!!m&&['queued','running','waiting_render','paused','needs_review'].includes(m.status);
 export const PRODUCTION_LABELS:Record<ProductionStatus,string>={draft:'Direction créative proposée',queued:'Production en attente',running:'Production autonome en cours',waiting_render:'Montage transmis au moteur vidéo',paused:'Production en pause',needs_review:'Vérification nécessaire',done:'Production terminée',failed:'Production interrompue',canceled:'Production annulée'};
 export async function readProduction(projectId:string):Promise<{mission:ProductionMission|null;tasks:MissionTask[]}>{
- const {data,error}=await supabase.from('production_missions').select('id,project_id,conversation_id,plan,target_seconds,status,step_count,requested_action,error_code,render_job_id,updated_at').eq('project_id',projectId).not('status','eq','canceled').order('created_at',{ascending:false}).limit(1).maybeSingle();
+ const {data,error}=await supabase.from('production_missions').select('id,project_id,conversation_id,plan,target_seconds,status,step_count,requested_action,error_code,render_job_id,updated_at').eq('project_id',projectId).order('created_at',{ascending:false}).limit(1).maybeSingle();
  if(error)throw error;
  const mission=data as ProductionMission|null;
  if(!mission)return {mission:null,tasks:[]};
