@@ -2,7 +2,7 @@ import {useCallback,useEffect,useMemo,useRef,useState,type FormEvent,type Change
 import {Activity,ArrowRight,Check,CheckCircle2,ChevronDown,ChevronRight,Clapperboard,Clock3,Download,Edit3,ExternalLink,Film,FolderOpen,Grid2X2,Image as ImageIcon,Layers3,LoaderCircle,LogOut,MessageCircle,MoreVertical,Music2,Paperclip,Pause,Play,Plus,Send,Settings2,ShieldCheck,Sparkles,Video,X,AlertCircle,Copy} from 'lucide-react';
 import type {LucideIcon} from 'lucide-react';
 // Import the same pure, security-filtered activity parser used by Android.
-import {buildActivityTurns,type ActivityTurn} from '../../src/lib/agentActivity';
+import {buildActivityTurns,type ActivityTurn} from './agentActivity';
 import {db,listProjects,listRenders,listAssets,listConversations,listMessages,listActivityRows,listMissionTasks,latestMission,latestFilm,createProject,sendChat,missionCommand,requestRender,signedOutput,signedAsset,uploadAsset,stageName,statusLabel,planTitle,type Project,type Message,type Asset,type Render,type Mission,type Task,type Film as FilmData,type Tab} from './api';
 type Attachment={id:string;name:string};
 type Dialog='create'|'plan'|'scenes'|'settings'|null;
