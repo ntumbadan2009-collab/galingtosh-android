@@ -6,17 +6,30 @@ export type Tab='studio'|'projects'|'media';
 export type Project={id:string;title:string;type:string;created_at:string;updated_at:string};
 export type Conversation={id:string;project_id:string|null;title:string|null;created_at:string};
 export type Message={id:string;role:'user'|'assistant'|'tool';content:string;created_at:string;metadata?:Record<string,unknown>};
-export type Asset={id:string;project_id:string;kind:string;source:string;storage_path:string|null;license:string|null;provenance:Record<string,unknown>|null;analysis:Record<string,unknown>|null};
-export type Render={id:string;project_id:string;film_version:number;status:string;progress:number;output_path:string|null;error:string|null;created_at:string};
+export type Asset={id:string;project_id:string;kind:string;source:string;storage_path:string|null;license:string|null;provenance:Record<string,unknown>|null;analysis:Record<string,unknown>|null;preview?:string|null};
+export type Render={id:string;project_id:string;film_version:number;status:string;progress:number;output_path:string|null;error:string|null;warnings?:string[]|null;created_at:string};
 export type Mission={id:string;project_id:string;conversation_id:string;status:'draft'|'queued'|'running'|'waiting_render'|'paused'|'needs_review'|'done'|'failed'|'canceled';plan:string;target_seconds:number;step_count:number;render_job_id:string|null;requested_action:string|null;error_code:string|null};
 export type Task={id:string;mission_id:string;step_no:number;kind:string;status:string;started_at:string};
 export type Film={version:number;data:{info?:{title?:string;synopsis?:string};scenes?:Array<{id:string;title?:string;durationSec?:number;order?:number;narrativeGoal?:string;shots?:Array<{id:string;mediaRef?:string;inSec?:number;outSec?:number}>;narration?:{text?:string}}>;}};
 async function checked<T>(query:PromiseLike<{data:T|null;error:unknown}>):Promise<T>{const result=await query;if(result.error)throw result.error;return result.data as T;}
 export const listProjects=()=>checked(db.from('projects').select('id,title,type,created_at,updated_at').order('updated_at',{ascending:false}).limit(100));
-export const listRenders=()=>checked(db.from('render_jobs').select('id,project_id,film_version,status,progress,output_path,error,created_at').order('created_at',{ascending:false}).limit(80));
-export const listAssets=()=>checked(db.from('media_assets').select('id,project_id,kind,source,storage_path,license,provenance,analysis').order('created_at',{ascending:false}).limit(100));
+export const listRenders=()=>checked(db.from('render_jobs').select('id,project_id,film_version,status,progress,output_path,error,warnings,created_at').order('created_at',{ascending:false}).limit(80));
+/** Mirrors App.tsx:loadAssets on Android; never replace real previews with invented images. */
+export async function listAssets():Promise<Asset[]>{
+ const rows=(await checked(db.from('media_assets').select('id,project_id,kind,source,storage_path,license,provenance,analysis').order('created_at',{ascending:false}).limit(80))) as Asset[];
+ return Promise.all(rows.map(async a=>{
+  const sourcePreview=typeof a.provenance?.preview_url==='string'&&/^https:\/\//i.test(a.provenance.preview_url)?a.provenance.preview_url:null;
+  if(a.kind==='image'&&a.storage_path){
+   const {data}=await db.storage.from('user-uploads').createSignedUrl(a.storage_path,900);
+   return {...a,preview:data?.signedUrl||sourcePreview};
+  }
+  return {...a,preview:sourcePreview};
+ }));
+}
 export const listConversations=(projectId:string)=>checked(db.from('conversations').select('id,project_id,title,created_at').eq('project_id',projectId).order('created_at',{ascending:false}).limit(30));
 export const listMessages=(id:string)=>checked(db.from('messages').select('id,role,content,created_at,metadata').eq('conversation_id',id).in('role',['user','assistant']).order('created_at',{ascending:false}).limit(140));
+// The journal is built from persisted tool metadata (same as Android), not fake activity.
+export const listActivityRows=(id:string)=>checked(db.from('messages').select('id,role,created_at,metadata').eq('conversation_id',id).in('role',['user','assistant','tool']).order('created_at',{ascending:false}).limit(500));
 export const listMissionTasks=(missionId:string)=>checked(db.from('production_tasks').select('id,mission_id,step_no,kind,status,started_at').eq('mission_id',missionId).order('step_no',{ascending:false}).limit(40));
 export async function latestMission(projectId:string):Promise<Mission|null>{return (await checked(db.from('production_missions').select('id,project_id,conversation_id,status,plan,target_seconds,step_count,render_job_id,requested_action,error_code').eq('project_id',projectId).order('created_at',{ascending:false}).limit(1).maybeSingle())) as Mission|null;}
 export async function latestFilm(projectId:string){return checked(db.from('films').select('version,data').eq('project_id',projectId).order('version',{ascending:false}).limit(1).maybeSingle());}
@@ -39,10 +52,10 @@ export async function requestRender(projectId:string){
 }
 export async function signedOutput(path:string){const {data,error}=await db.storage.from('renders').createSignedUrl(path,900);if(error)throw error;return data.signedUrl;}
 export async function signedAsset(a:Asset){
- if(!a.storage_path)return null;
+ if(!a.storage_path)return a.preview||null;
  const bucket=a.source==='upload'?'user-uploads':'media';
  const {data,error}=await db.storage.from(bucket).createSignedUrl(a.storage_path,900);
- return error?null:data.signedUrl;
+ return error?a.preview||null:data.signedUrl;
 }
 export async function uploadAsset(file:File,projectId:string,userId:string){
  const allowed=new Set(['image/png','image/jpeg','image/webp','image/gif','video/mp4','video/quicktime','video/webm','audio/mpeg','audio/wav','audio/mp4','audio/ogg']);

@@ -1,15 +1,15 @@
 name: Galingtosh Web checks
 on:
   pull_request:
-    paths: ['web/**', '.github/workflows/web-check.yml']
+    paths: ['web/**', 'src/lib/agentActivity.ts', '.github/workflows/web-check.yml']
   push:
     branches: [main]
-    paths: ['web/**']
+    paths: ['web/**', 'src/lib/agentActivity.ts']
 permissions:
   contents: read
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
       run:
@@ -20,4 +20,14 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-audit --no-fund
+      - run: diff -u ../src/lib/agentActivity.ts src/agentActivity.ts
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-native-mobile-screenshots
+          path: web/test-results
+          if-no-files-found: ignore
+          retention-days: 7
