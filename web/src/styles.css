@@ -374,3 +374,7 @@
  .shell:has(.composer textarea:focus) .studio-head.android-project-header{display:none!important}
  .shell:has(.composer textarea:focus) .proposal-banner>small{display:none}
 }
+
+/* Direct native measurements: s.projectIcon width 78, height 58. */
+.android-project-item .project-item-art{width:78px;height:58px}
+@media(max-width:620px){.android-project-item .project-item-art{width:78px;height:58px}}
