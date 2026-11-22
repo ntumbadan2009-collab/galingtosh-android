@@ -78,7 +78,7 @@ test('Android media: finished videos as rows, actual assets in two-column thumbn
  expect(first.width).toBeLessThan(180);
  await cards.first().click();
  await expect(page.getByRole('dialog',{name:'Détails du média'})).toBeVisible();
- await expect(page.getByText('Pixabay Content License')).toBeVisible();
+ await expect(page.getByRole('dialog',{name:'Détails du média'}).getByText('Licence : Pixabay Content License',{exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Fermer'}).click();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(361);
  await page.screenshot({path:'test-results/media-native-layout.png'});
