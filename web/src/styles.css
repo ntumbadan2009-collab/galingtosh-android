@@ -182,3 +182,63 @@
  .android-header .brand-copy strong{max-width:calc(100vw - 205px)}
  .mobile-nav.android-tabs{width:100%;max-width:100%;height:72px;min-height:72px}
 }
+
+/* Mobile Android parity — Projects, 22 Nov reference.
+   List, filters, menu and project identity match the native presentation. */
+.brand-with-tagline{display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}
+.android-header .brand-with-tagline .brand{flex:initial}
+.android-tagline{font-weight:800;letter-spacing:.19em;font-size:10px;color:#91849d;padding-left:61px}
+.android-projects{width:100%;max-width:100%;margin:0 auto;min-height:0;padding:24px 28px 36px;background:transparent}
+.android-project-title{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:23px}
+.android-project-title h1{font-size:34px;margin:0}
+.project-add{display:flex;align-items:center;justify-content:center;background:transparent;border:0;color:#aa55f9;width:48px;height:48px;flex:none;border-radius:50%}
+.project-add:hover{background:#2c1d40}
+.project-search{background:#1b1628;border:1px solid #41324f;border-radius:17px;min-height:55px;margin:0 0 19px;display:flex;align-items:center;padding:0 18px}
+.project-search input{background:transparent;border:0;outline:0;width:100%;min-width:0;color:#eee8f5;font-size:15px}
+.project-search input::placeholder{color:#93869e}
+.project-filters{display:flex;align-items:center;gap:10px;margin:0 0 25px}
+.project-filter{background:#1a1528;border:1px solid transparent;border-radius:99px;color:#f0e9fa;padding:10px 19px;font-size:14px;font-weight:700;min-height:42px}
+.project-filter.is-active{background:#493070;border:1px solid #a757ff;box-shadow:inset 0 0 0 1px #a757ff;color:white}
+.android-project-list{display:flex;flex-direction:column;gap:12px;max-width:850px;margin:0 auto}
+.android-project-item{display:flex;align-items:center;gap:7px;position:relative;min-height:137px;width:100%;border-radius:20px;border:1px solid #443553;background:#141020;padding:15px 17px}
+.project-item-main{display:flex;align-items:center;gap:17px;min-width:0;flex:1;border:0;background:transparent;text-align:left;padding:0}
+.project-item-art{display:flex;align-items:center;justify-content:center;width:86px;height:86px;flex:none;background:#251a37;color:#aa55f9;border-radius:16px}
+.project-item-copy{display:flex;min-width:0;flex:1;flex-direction:column;gap:4px;align-items:flex-start}
+.project-item-copy strong{font-size:16px;line-height:1.25;font-weight:800;letter-spacing:-.015em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.project-item-copy>span{font-size:14px;line-height:1.35;color:#ae9fbf;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.project-item-copy time{font-size:12px;color:#9789a5;margin-top:5px}
+.project-item-menu{display:flex;align-items:center;justify-content:center;width:42px;height:48px;flex:none;color:#a99bb7;background:transparent;border:0;border-radius:12px}
+.project-item-menu:hover,.project-item-menu[aria-expanded=true]{background:#292039;color:#edddff}
+.project-item-popover{position:absolute;z-index:9;right:15px;top:74%;min-width:218px;border:1px solid #604675;background:#241b32;box-shadow:0 14px 38px #0009;border-radius:13px;padding:6px;display:flex;flex-direction:column;gap:2px}
+.project-item-popover button{display:flex;align-items:center;gap:10px;background:transparent;border:0;border-radius:8px;text-align:left;font-size:13px;padding:10px;color:#eee8f7}
+.project-item-popover button:hover{background:#372548}
+@media(max-width:620px){
+ .android-header .brand-with-tagline .brand{overflow:visible}
+ .android-header .brand-with-tagline .brand-copy strong{font-size:23px;max-width:55vw}
+ .android-tagline{font-size:8px;letter-spacing:.13em;padding-left:56px}
+ .android-projects{padding:27px 20px 24px}
+ .android-project-title{margin-bottom:21px}
+ .android-project-title h1{font-size:28px}
+ .project-add{width:38px;height:43px}
+ .project-search{height:55px;min-height:55px;border-radius:15px;padding:0 16px;margin-bottom:18px}
+ .project-search input{font-size:14px}
+ .project-filters{gap:8px;margin-bottom:22px}
+ .project-filter{font-size:13px;min-height:44px;padding:10px 17px}
+ .android-project-list{gap:11px}
+ .android-project-item{min-height:126px;padding:13px 14px;border-radius:19px;gap:6px}
+ .project-item-main{gap:13px}
+ .project-item-art{width:77px;height:77px;border-radius:15px}
+ .project-item-art svg{height:30px;width:30px}
+ .project-item-copy strong{font-size:14px}
+ .project-item-copy>span{font-size:13px}
+ .project-item-copy time{font-size:11px}
+ .project-item-menu{width:31px;height:44px}
+ .project-item-popover{right:12px;top:80%}
+}
+@media(max-width:370px){
+ .android-projects{padding-left:14px;padding-right:14px}
+ .android-project-item{padding:12px 10px}
+ .project-item-main{gap:10px}
+ .project-item-art{width:64px;height:70px}
+ .project-filter{padding:9px 13px}
+}
