@@ -14,7 +14,7 @@ import {supabase,supabaseConfigured,SUPABASE_URL} from './src/lib/supabase';
 import {sendToAgent,recoverAgentResponse} from './src/lib/ai';
 import {buildActivityTurns,type ActivityRow,type ActivityTurn} from './src/lib/agentActivity';
 import {trailingSpace,anchorOffset,canAnchor} from './src/lib/chatLayout';
-import {readProduction,controlProduction,activeProduction,PRODUCTION_LABELS,type ProductionMission,type MissionTask} from './src/lib/production';
+import {readProduction,controlProduction,activeProduction,creativePlanHeadline,creativePlanFormat,PRODUCTION_LABELS,type ProductionMission,type MissionTask} from './src/lib/production';
 import {getRenderDownloadUrl,getRenderJob,listRenderJobs,requestRender,RenderJob} from './src/lib/render';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -143,6 +143,7 @@ function AppContent(){
  const requestEpoch=useRef(0);
  const handledUrls=useRef(new Set<string>());
  const chatScroll=useRef<ScrollView>(null);
+ const chatInputRef=useRef<TextInput>(null);
  const viewportRef=useRef(0);
  const contentRef=useRef(0);
  const lastTurnRef=useRef({id:null as string|null,y:0,height:0});
@@ -342,11 +343,20 @@ function AppContent(){
  async function runMissionCommand(command:'approve'|'pause'|'resume'|'cancel'){
   if(!mission||productionControlBusy)return;
   const id=mission.id,projectId=mission.project_id,epoch=requestEpoch.current;
+  const wasDraft=mission.status==='draft';
   setProductionControlBusy(true);
   try{
-   await controlProduction(id,command);
+   const reply=await controlProduction(id,command);
    const current=await readProduction(projectId);
-   if(epoch===requestEpoch.current)setProduction(current);
+   if(epoch===requestEpoch.current){
+    setProduction(current);
+    if(wasDraft&&reply){
+     const now=Date.now();
+     setMessages(rows=>[...rows,
+      {id:'action-user-'+now,role:'user',text:command==='approve'?'Je valide le plan':'Je refuse ce plan'},
+      {id:'action-reply-'+now,role:'assistant',text:reply}]);
+    }
+   }
   }catch{if(epoch===requestEpoch.current)Alert.alert('Commande non confirmée','Le projet reste enregistré. Réessaie après avoir vérifié la connexion.');}
   finally{setProductionControlBusy(false);}
  }
@@ -441,7 +451,7 @@ function AppContent(){
  }
 
  async function sendMessage(){
-  const text=draft.trim();if((!text&&!attachments.length)||busy||uploading||loadingProject)return;
+  const text=draft.trim();if((!text&&!attachments.length)||busy||uploading||loadingProject||productionControlBusy)return;
   if(!supabaseConfigured||!user){Alert.alert('Connexion requise','Connectez-vous avec votre compte Galingtosh avant d’utiliser le Studio.');setTab('account');return;}
   const epoch=requestEpoch.current;const attached=[...attachments];setPriorTurnId(activityTurns[activityTurns.length-1]?.id||null);const msgId=String(Date.now());pendingAnchor.current=msgId;manualScroll.current=false;setShowJump(false);setTurnHeight(0);setMessages(m=>[...m,{id:msgId,role:'user',text:text||'Média joint',}]);Keyboard.dismiss();
   setDraft('');setAttachments([]);setBusy(true);
@@ -460,6 +470,10 @@ function AppContent(){
    if(epoch!==requestEpoch.current)return;
    setMessages(m=>[...m,{id:String(Date.now()+1),role:'assistant',text:result.reply}]);
    if(result.conversation_id)setConversationId(result.conversation_id);
+   const projectWithMission=result.project_id||activeProjectId;
+   if(projectWithMission)void readProduction(projectWithMission).then(value=>{
+    if(epoch===requestEpoch.current)setProduction(value);
+   }).catch(()=>{});
    if(result.project_id){setActiveProjectId(result.project_id);loadProjects();await Promise.all([loadFilm(result.project_id),loadAssets(result.project_id)]);}
    if(result.render_job_id){const next=await getRenderJob(result.render_job_id);setJob(next);loadJobs(result.project_id||activeProjectId||undefined);}
   }catch(e:any){
@@ -553,7 +567,28 @@ function AppContent(){
       {missionWorking?<ActivityIndicator size="small" color={C.violet}/>:<Feather name={mission.status==='done'?'check-circle':mission.status==='needs_review'?'alert-circle':'film'} size={21} color={mission.status==='done'?C.green:mission.status==='needs_review'?C.amber:C.violet}/>}
       <View style={{flex:1}}><Text style={s.cardTitle}>{PRODUCTION_LABELS[mission.status]}</Text><Text style={s.cardSub}>{mission.status==='draft'?`Durée visée : ${Math.floor(mission.target_seconds/60)} min ${mission.target_seconds%60} s`:mission.requested_action?'Commande enregistrée · opération en cours':`${mission.step_count} opération(s) enregistrée(s)`}</Text></View><Feather name={missionExpanded?'chevron-up':'chevron-down'} size={18} color={C.muted}/>
      </Pressable>
-     {mission.status==='draft'?<><Text style={s.messageText} selectable>{mission.plan}</Text><Button title="Valider et lancer la production" icon="play" loading={productionControlBusy} onPress={()=>void runMissionCommand('approve')}/><Button title="Refuser ce plan" secondary disabled={productionControlBusy} onPress={()=>void runMissionCommand('cancel')}/></>:null}
+     {mission.status==='draft'?<View style={{gap:9}}>
+      <Text style={{fontSize:15,fontWeight:'800',color:C.text,lineHeight:21}} numberOfLines={2}>{creativePlanHeadline(mission.plan)}</Text>
+      {creativePlanFormat(mission.plan)?<Text style={{color:C.muted,fontSize:12}} numberOfLines={2}>{creativePlanFormat(mission.plan)}</Text>:null}
+      <Button title="Valider et produire" icon="play" loading={productionControlBusy} disabled={busy||uploading||loadingProject} onPress={()=>void runMissionCommand('approve')}/>
+      <Button title="Modifier le plan" icon="edit-3" secondary disabled={productionControlBusy||busy} onPress={()=>{
+       setDraft(prev=>prev.trim()?prev:'Je souhaite modifier le plan : ');
+       chatInputRef.current?.focus();
+      }}/>
+      <Text style={{fontSize:12,color:C.muted,lineHeight:18}}>Tu peux aussi écrire « OK » pour valider, ou expliquer tes modifications dans le chat.</Text>
+      <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:12}}>
+       <Pressable accessibilityRole="button" accessibilityLabel={missionExpanded?'Masquer le plan complet':'Afficher le plan complet'} onPress={()=>setMissionExpanded(v=>!v)} style={{flexDirection:'row',alignItems:'center',gap:6,minHeight:44}}>
+        <Feather name={missionExpanded?'chevron-up':'chevron-down'} size={17} color={C.violet}/>
+        <Text style={{fontSize:12,color:C.violet,fontWeight:'700'}}>{missionExpanded?'Masquer le détail':'Voir le plan complet'}</Text>
+       </Pressable>
+       <Pressable accessibilityRole="button" disabled={productionControlBusy||busy} accessibilityLabel="Refuser cette proposition" onPress={()=>void runMissionCommand('cancel')} style={{minHeight:44,justifyContent:'center'}}>
+        <Text style={{color:C.muted,fontSize:12,fontWeight:'600'}}>Refuser</Text>
+       </Pressable>
+      </View>
+      {missionExpanded?<ScrollView nestedScrollEnabled style={{maxHeight:240,borderColor:C.border,borderWidth:1,borderRadius:12,backgroundColor:C.surface,padding:12}} contentContainerStyle={{paddingBottom:14}}>
+       <Text style={[s.messageText,{fontSize:13,lineHeight:20}]} selectable>{mission.plan}</Text>
+      </ScrollView>:null}
+     </View>:null}
      {missionExpanded&&mission.status!=='draft'?<View style={{gap:8}}>{production?.tasks.slice(0,12).map(t=><View key={t.step_no} style={{flexDirection:'row',alignItems:'center',gap:8}}><Feather name={t.status==='done'?'check-circle':t.status==='failed'||t.status==='uncertain'?'alert-circle':'clock'} color={t.status==='done'?C.green:t.status==='failed'||t.status==='uncertain'?C.amber:C.muted} size={16}/><Text style={s.cardSub}>Opération {t.step_no} · {t.status==='done'?'confirmée':t.status==='failed'?'échouée':t.status==='uncertain'?'à vérifier':'en cours'}</Text></View>)}
      {missionWorking&&!mission.requested_action?<Button title="Mettre en pause après cette étape" secondary disabled={productionControlBusy} icon="pause" onPress={()=>void runMissionCommand('pause')}/>:null}
      {mission.status==='paused'?<Button title="Reprendre la production" disabled={productionControlBusy} icon="play" onPress={()=>void runMissionCommand('resume')}/>:null}
@@ -587,7 +622,7 @@ function AppContent(){
      <View style={{backgroundColor:C.bg}}>
      {uploading?<Text style={[s.muted,{textAlign:'center',padding:8}]}>Import du média en cours…</Text>:null}
     {attachments.length>0?<ScrollView horizontal style={s.attachmentStrip}>{attachments.map(a=><Pressable key={a.path} style={s.attachmentChip} onPress={()=>setAttachments(v=>v.filter(x=>x.path!==a.path))}><Feather name="paperclip" size={13} color={C.violet}/><Text numberOfLines={1} style={s.attachmentName}>{a.name}</Text><Feather name="x" size={13} color={C.muted}/></Pressable>)}</ScrollView>:null}
-    <View style={s.composer}><Pressable style={s.attachButton} onPress={addAttachment} accessibilityRole="button" accessibilityLabel="Joindre un média"><Feather name="paperclip" size={23} color={C.muted}/></Pressable><TextInput value={draft} onChangeText={setDraft} placeholder="Écrivez votre message..." placeholderTextColor={C.dim} style={s.composerInput} multiline maxLength={5000} blurOnSubmit={false} returnKeyType="default" textAlignVertical="center" scrollEnabled/><Pressable style={{opacity:busy||uploading||loadingProject||(!draft.trim()&&!attachments.length)?0.45:1}} onPress={sendMessage} disabled={busy||uploading||loadingProject||(!draft.trim()&&!attachments.length)} accessibilityRole="button" accessibilityLabel="Envoyer le message"><LinearGradient colors={['#8C43FF','#5D22E8']} style={s.sendButton}><Feather name="send" size={21} color="#FFF"/></LinearGradient></Pressable></View>
+    <View style={s.composer}><Pressable style={s.attachButton} onPress={addAttachment} accessibilityRole="button" accessibilityLabel="Joindre un média"><Feather name="paperclip" size={23} color={C.muted}/></Pressable><TextInput ref={chatInputRef} value={draft} onChangeText={setDraft} placeholder={mission?.status==='draft'?"OK pour valider, ou vos modifications...":"Écrivez votre message..."} placeholderTextColor={C.dim} style={s.composerInput} multiline maxLength={5000} blurOnSubmit={false} returnKeyType="default" textAlignVertical="center" scrollEnabled/><Pressable style={{opacity:busy||uploading||loadingProject||productionControlBusy||(!draft.trim()&&!attachments.length)?0.45:1}} onPress={sendMessage} disabled={busy||uploading||loadingProject||productionControlBusy||(!draft.trim()&&!attachments.length)} accessibilityRole="button" accessibilityLabel="Envoyer le message"><LinearGradient colors={['#8C43FF','#5D22E8']} style={s.sendButton}><Feather name="send" size={21} color="#FFF"/></LinearGradient></Pressable></View>
      </View></KeyboardStickyView></View>:null}
    {tab==='projects'?<ScrollView contentContainerStyle={s.pageContent}>
     <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:13}}><Text style={s.pageTitle}>Mes projets</Text><Pressable style={s.inlineAction} accessibilityRole="button" accessibilityLabel="Nouveau projet" onPress={()=>{if(!user){setTab('account');return;}setProjectModal(true);}}><Feather name="plus-circle" color={C.violet} size={27}/></Pressable></View>
