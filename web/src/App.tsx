@@ -235,7 +235,7 @@ export function App(){
    {tab==='projects'&&<section className="page android-projects">
     <div className="android-project-title">
       <h1>Mes projets</h1>
-      <button className="project-add" aria-label="Créer un projet" title="Créer un projet" onClick={()=>setDialog('create')}><Plus size={27}/></button>
+      <button className="project-add" aria-label="Créer un projet" title="Créer un projet" onClick={()=>setDialog('create')}><CirclePlus size={27}/></button>
     </div>
     <div className="project-search"><input aria-label="Rechercher un projet" placeholder="Rechercher un projet" value={search} onChange={e=>setSearch(e.target.value)}/></div>
     <div className="project-filters" role="group" aria-label="Filtrer les projets">
