@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useMemo,useRef,useState,type FormEvent,type ChangeEvent} from 'react';
-import {Activity,ArrowRight,Check,CheckCircle2,ChevronDown,ChevronRight,Clapperboard,Clock3,Download,Edit3,ExternalLink,Film,FolderOpen,Grid2X2,Image as ImageIcon,Layers3,LoaderCircle,LogOut,MessageCircle,Paperclip,Pause,Play,Plus,Search,Send,Settings2,ShieldCheck,Sparkles,UploadCloud,Video,X,AlertCircle,Copy} from 'lucide-react';
+import {Activity,ArrowRight,Check,CheckCircle2,ChevronDown,ChevronRight,Clapperboard,Clock3,Download,Edit3,ExternalLink,Film,FolderOpen,Grid2X2,Image as ImageIcon,Layers3,LoaderCircle,LogOut,MessageCircle,MoreVertical,Paperclip,Pause,Play,Plus,Search,Send,Settings2,ShieldCheck,Sparkles,UploadCloud,Video,X,AlertCircle,Copy} from 'lucide-react';
 import type {LucideIcon} from 'lucide-react';
 import {db,listProjects,listRenders,listAssets,listConversations,listMessages,listMissionTasks,latestMission,latestFilm,createProject,sendChat,missionCommand,requestRender,signedOutput,signedAsset,uploadAsset,stageName,statusLabel,planTitle,type Project,type Message,type Asset,type Render,type Mission,type Task,type Film as FilmData,type Tab} from './api';
 type Attachment={id:string;name:string};
@@ -28,7 +28,7 @@ export function App(){
  const[dialog,setDialog]=useState<Dialog>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(false),[actionBusy,setActionBusy]=useState(false);
  const[composer,setComposer]=useState(''),[attachments,setAttachments]=useState<Attachment[]>([]);
  const[createTitle,setCreateTitle]=useState(''),[createBrief,setCreateBrief]=useState('');
- const[search,setSearch]=useState(''),[mediaFilter,setMediaFilter]=useState<'all'|'image'|'video'|'audio'>('all');
+ const[search,setSearch]=useState(''),[projectFilter,setProjectFilter]=useState<'all'|'active'|'done'>('all'),[projectMenuId,setProjectMenuId]=useState<string|null>(null),[mediaFilter,setMediaFilter]=useState<'all'|'image'|'video'|'audio'>('all');
  const[previewUrl,setPreviewUrl]=useState<string|null>(null),[previewAsset,setPreviewAsset]=useState<Asset|null>(null);
  const[showActivity,setShowActivity]=useState(false);
  const[projectMenu,setProjectMenu]=useState(false),[renameValue,setRenameValue]=useState('');
@@ -40,7 +40,13 @@ export function App(){
  const readyRender=jobs.find(j=>j.project_id===projectId&&j.status==='done'&&j.output_path);
  const missionRender=jobs.find(j=>j.id===mission?.render_job_id);
  const isActiveMission=!!mission&&['queued','running','waiting_render','paused','needs_review'].includes(mission.status);
- const visibleProjects=useMemo(()=>projects.filter(p=>p.title.toLowerCase().includes(search.trim().toLowerCase())),[projects,search]);
+ const visibleProjects=useMemo(()=>projects.filter(p=>{
+  if(!p.title.toLowerCase().includes(search.trim().toLowerCase()))return false;
+  const recent=jobs.find(j=>j.project_id===p.id);
+  if(projectFilter==='active')return recent?.status!=='done';
+  if(projectFilter==='done')return recent?.status==='done';
+  return true;
+ }),[projects,jobs,projectFilter,search]);
  const visibleAssets=useMemo(()=>assets.filter(a=>(!projectId||a.project_id===projectId)&&(mediaFilter==='all'||a.kind===mediaFilter)),[assets,mediaFilter,projectId]);
  const alertError=(e:unknown)=>setError(e instanceof Error?e.message:'Opération impossible. Vérifie ta connexion.');
  useEffect(()=>{let mounted=true;void db.auth.getSession().then(({data})=>{if(mounted){setUser(data.session?.user?{id:data.session.user.id,email:data.session.user.email}:null);setAuthReady(true);}});const{subscription}=db.auth.onAuthStateChange((_event,session)=>{if(mounted){setUser(session?.user?{id:session.user.id,email:session.user.email}:null);setAuthReady(true);}}).data;return()=>{mounted=false;subscription.unsubscribe();}},[]);
@@ -100,7 +106,7 @@ export function App(){
  async function renderProject(){if(!projectId||actionBusy||isActiveMission)return;setActionBusy(true);try{await requestRender(projectId);setJobs(await listRenders());}catch(e){alertError(e)}finally{setActionBusy(false)}}
  async function playRender(path:string){try{setPreviewAsset(null);setPreviewUrl(await signedOutput(path));}catch(e){alertError(e)}}
  async function playAsset(a:Asset){try{const url=await signedAsset(a);if(!url)throw Error('Aucun aperçu disponible pour ce média.');setPreviewAsset(a);setPreviewUrl(url);}catch(e){alertError(e)}}
- async function renameProject(){if(!projectId||!renameValue.trim()||actionBusy||!user)return;setActionBusy(true);try{const{error}=await db.from('projects').update({title:renameValue.trim()}).eq('id',projectId).eq('user_id',user.id);if(error)throw error;setProjectMenu(false);await refreshGlobal();}catch(e){alertError(e)}finally{setActionBusy(false)}}
+ async function renameProject(){const id=projectMenuId||projectId;if(!id||!renameValue.trim()||actionBusy||!user)return;setActionBusy(true);try{const{error}=await db.from('projects').update({title:renameValue.trim()}).eq('id',id).eq('user_id',user.id);if(error)throw error;setProjectMenu(false);setProjectMenuId(null);await refreshGlobal();}catch(e){alertError(e)}finally{setActionBusy(false)}}
  async function logout(){await db.auth.signOut();setDialog(null);setUser(null);}
  if(!authReady)return <div className="boot"><Brand/><LoaderCircle className="spin"/></div>;
  if(!user)return <Auth onAuth={()=>void refreshGlobal()}/>;
@@ -120,9 +126,9 @@ export function App(){
   </aside>
   <main className="workspace">
    <header className="topbar android-header">
-    <Brand small/>
+    <div className="brand-with-tagline"><Brand small/>{tab!=='studio'&&<span className="android-tagline">CRÉEZ · MONTEZ · PARTAGEZ</span>}</div>
     <div className="top-actions">
-     <button className="android-action" aria-label="Nouvelle conversation" title="Nouvelle conversation" onClick={startNewConversation}><Edit3 size={24}/></button>
+     {tab==='studio'&&<button className="android-action" aria-label="Nouvelle conversation" title="Nouvelle conversation" onClick={startNewConversation}><Edit3 size={24}/></button>}
      <button className="android-action" aria-label="Paramètres" title="Paramètres" onClick={()=>setDialog('settings')}><Settings2 size={24}/></button>
     </div>
    </header>
@@ -144,7 +150,38 @@ export function App(){
     </section>
     <aside className="inspector"><div className="inspector-title"><Sparkles size={17}/> Tableau de production</div><div className="inspector-card"><span className="eyebrow">PROJET ACTIF</span>{activeProject?<><strong className="inspector-heading">{activeProject.title}</strong><p>{film?.data?.info?.synopsis||'Votre réalisation prend forme scène après scène.'}</p><div className="stat-grid"><div><strong>{film?.data?.scenes?.length||0}</strong><small>Scènes</small></div><div><strong>{assets.filter(a=>a.project_id===projectId).length}</strong><small>Médias</small></div></div></>:<p>Aucun projet sélectionné. Lancez une création pour commencer.</p>}</div><div className="inspector-card"><div className="row-between"><span className="eyebrow">PRODUCTION</span><Activity size={16} color="#ad7bff"/></div><div className="inspector-status"><span className={activeRender||isActiveMission?'green-dot':'quiet-dot'}/><strong>{mission?statusLabel(mission.status):activeRender?'Rendu en cours':latestRender?.status==='failed'?'Dernier rendu interrompu':'En attente d’une demande'}</strong></div>{activeRender&&<><div className="progress-track"><span style={{width:Math.max(0,Math.min(100,activeRender.progress||0))+'%'}}/></div><small>{activeRender.progress}% du rendu déclaré par le moteur</small></>}{latestRender?.status==='failed'&&!activeRender&&<p>Le montage est conservé. Les détails de l’erreur se trouvent dans Projets.</p>}{readyRender?.output_path&&<button className="outline full" onClick={()=>void playRender(readyRender.output_path!)}><Play size={16}/> Dernière vidéo disponible</button>}</div><div className="inspector-card"><div className="row-between"><span className="eyebrow">MONTAGE</span><Layers3 size={17} color="#ad7bff"/></div>{(film?.data?.scenes||[]).slice(0,4).map((s,i)=><button className="scene-short" key={s.id} onClick={()=>setDialog('scenes')}><span>{String(i+1).padStart(2,'0')}</span><span>{s.title||'Scène'}</span><ChevronRight size={15}/></button>)}<button className="text-link" onClick={()=>setDialog('scenes')}>Voir le storyboard <ArrowRight size={14}/></button></div></aside></div>
    </div>}
-   {tab==='projects'&&<section className="page"><div className="page-title"><div><div className="overline">VOTRE BIBLIOTHÈQUE</div><h1>Mes projets</h1><p>Retrouvez vos histoires, versions et productions.</p></div><button className="primary" onClick={()=>setDialog('create')}><Plus size={17}/> Nouveau projet</button></div><div className="search"><Search size={18}/><input placeholder="Rechercher un projet…" value={search} onChange={e=>setSearch(e.target.value)}/></div>{visibleProjects.length===0?<Empty icon={FolderOpen} title="Aucun projet trouvé" desc="Créez votre premier projet depuis le Studio."/>:<div className="project-grid">{visibleProjects.map(p=>{const r=jobs.find(j=>j.project_id===p.id),ready=jobs.find(j=>j.project_id===p.id&&j.status==='done'&&j.output_path);return <button className="project-card" onClick={()=>void openProject(p.id)} key={p.id}><div className="project-cover"><Clapperboard size={38}/><span>{r?.status==='running'?'EN PRODUCTION':ready?'VIDÉO DISPONIBLE':'STUDIO'}</span></div><div className="project-info"><h3>{p.title}</h3><small>{r?.status==='running'?'Rendu : '+r.progress+' %':r?.status==='failed'?'Dernier rendu interrompu':ready?'Film disponible':'Projet en préparation'}</small><span className="project-date">{new Date(p.updated_at).toLocaleDateString('fr-FR')} <ArrowRight size={16}/></span></div></button>})}</div>}{projectId&&!isActiveMission&&!activeRender&&<div className="render-cta"><div><strong>Rendu du projet sélectionné</strong><p>Prépare le montage et confirme le lancement du moteur vidéo.</p></div><button className="outline" disabled={actionBusy||!film?.data?.scenes?.length} onClick={()=>{if(window.confirm('Lancer le rendu de la version actuelle ?'))void renderProject()}}><Play size={16}/> Lancer le rendu</button></div>}</section>}
+   {tab==='projects'&&<section className="page android-projects">
+    <div className="android-project-title">
+      <h1>Mes projets</h1>
+      <button className="project-add" aria-label="Créer un projet" title="Créer un projet" onClick={()=>setDialog('create')}><Plus size={27}/></button>
+    </div>
+    <div className="project-search"><input aria-label="Rechercher un projet" placeholder="Rechercher un projet" value={search} onChange={e=>setSearch(e.target.value)}/></div>
+    <div className="project-filters" role="group" aria-label="Filtrer les projets">
+     {([{id:'all',label:'Tous'},{id:'active',label:'En cours'},{id:'done',label:'Terminés'}] as const).map(f=><button type="button" key={f.id} aria-pressed={projectFilter===f.id} className={'project-filter '+(projectFilter===f.id?'is-active':'')} onClick={()=>setProjectFilter(f.id)}>{f.label}</button>)}
+    </div>
+    {visibleProjects.length===0?<Empty icon={FolderOpen} title="Aucun projet" desc="Aucun projet ne correspond à cette sélection."/>:
+    <div className="android-project-list">{visibleProjects.map(p=>{
+      const r=jobs.find(j=>j.project_id===p.id),ready=jobs.find(j=>j.project_id===p.id&&j.status==='done'&&j.output_path);
+      const description=r?.status==='failed'?'Dernière production interrompue':r?.status==='running'||r?.status==='queued'?'Production en cours':r?.status==='done'?'Production terminée':'Montage en préparation';
+      return <article className="android-project-item" key={p.id}>
+        <button className="project-item-main" onClick={()=>void openProject(p.id)} title={'Ouvrir '+p.title}>
+          <span className="project-item-art">{ready?<Play size={30}/>:<Film size={33}/>}</span>
+          <span className="project-item-copy">
+            <strong>{p.title}</strong>
+            <span>{description}</span>
+            <time dateTime={p.updated_at}>{new Date(p.updated_at).toLocaleDateString('fr-FR')}</time>
+          </span>
+        </button>
+        <button className="project-item-menu" aria-label={'Options du projet '+p.title} aria-expanded={projectMenuId===p.id} onClick={()=>setProjectMenuId(id=>id===p.id?null:p.id)}><MoreVertical size={22}/></button>
+        {projectMenuId===p.id&&<div className="project-item-popover" role="group" aria-label={'Options de '+p.title}>
+           <button onClick={()=>{setProjectMenuId(null);void openProject(p.id)}}><MessageCircle size={16}/> Ouvrir le Studio</button>
+           <button onClick={()=>{setProjectMenuId(p.id);setRenameValue(p.title);setProjectMenu(true)}}><Edit3 size={16}/> Renommer</button>
+           {ready?.output_path&&<button onClick={()=>{setProjectMenuId(null);void playRender(ready.output_path!)}}><Play size={16}/> Voir la dernière vidéo</button>}
+           <button onClick={()=>setProjectMenuId(null)}><X size={16}/> Fermer</button>
+         </div>}
+      </article>
+    })}</div>}
+   </section>}
    {tab==='media'&&<section className="page"><div className="page-title"><div><div className="overline">RESSOURCES AUDIOVISUELLES</div><h1>Médiathèque</h1><p>Vidéos produites, images et sons de vos projets.</p></div><button className="outline" disabled={!projectId} onClick={()=>uploadInput.current?.click()}><UploadCloud size={17}/> Importer</button></div><div className="filter-row">{(['all','image','video','audio'] as const).map(f=><button key={f} className={'filter '+(mediaFilter===f?'filter-active':'')} onClick={()=>setMediaFilter(f)}>{({all:'Tous',image:'Images',video:'Vidéos',audio:'Audio'} as const)[f]}</button>)}</div>{(mediaFilter==='all'||mediaFilter==='video')&&jobs.some(j=>j.status==='done'&&j.output_path)&&<><h2 className="subheading">Vos films</h2><div className="asset-grid">{jobs.filter(j=>j.status==='done'&&j.output_path).map(j=><button className="asset-card video-card" key={j.id} onClick={()=>void playRender(j.output_path!)}><span className="asset-thumb"><Play size={36}/></span><strong>{projects.find(p=>p.id===j.project_id)?.title||'Film'}</strong><small>MP4 · version {j.film_version}</small></button>)}</div></>}<h2 className="subheading">Médias du projet {activeProject?'· '+activeProject.title:''}</h2>{!projectId?<Empty icon={ImageIcon} title="Sélectionnez un projet" desc="Ouvrez un projet pour consulter ses ressources."/>:visibleAssets.length===0?<Empty icon={Grid2X2} title="Aucune ressource" desc="Importez des images, vidéos ou pistes sonores depuis le Studio."/>:<div className="asset-grid">{visibleAssets.map(a=><button className="asset-card" key={a.id} onClick={()=>void playAsset(a)}><span className="asset-thumb">{a.kind==='video'?<Video size={32}/>:a.kind==='audio'?<Activity size={32}/>:<ImageIcon size={32}/>}</span><strong>{String(a.provenance?.title||a.analysis?.original_name||'Média')}</strong><small>{a.kind} · {a.license||'Droits à vérifier'}</small></button>)}</div>}</section>}
   </main>
   <nav className="mobile-nav android-tabs" aria-label="Navigation mobile">{([{id:'studio',icon:MessageCircle,label:'Studio'},{id:'projects',icon:Film,label:'Projets'},{id:'media',icon:Grid2X2,label:'Médias'}] as const).map(item=><button key={item.id} className={tab===item.id?'active':''} onClick={()=>setTab(item.id)}><item.icon size={20}/><span>{item.label}</span></button>)}</nav>
