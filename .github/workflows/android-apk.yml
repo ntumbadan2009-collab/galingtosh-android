@@ -3,6 +3,20 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    # A web-only change must never trigger a new 40+ MB Android APK build.
+    paths:
+      - 'App.tsx'
+      - 'app.json'
+      - 'app.config.*'
+      - 'eas.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'assets/**'
+      - 'src/**'
+      - 'babel.config.*'
+      - 'metro.config.*'
+      - 'tsconfig.json'
+      - '.github/scripts/**'
 permissions:
   contents: read
   actions: read
