@@ -1,4 +1,4 @@
-import React,{useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import React,{useCallback,useEffect,useLayoutEffect,useMemo,useRef,useState} from 'react';
 import {AccessibilityInfo,ActivityIndicator,Alert,AppState,BackHandler,FlatList,Image,Keyboard,Linking,Modal,Platform,Pressable,ScrollView,Share,StatusBar,StyleSheet,Text,TextInput,ToastAndroid,View} from 'react-native';
 import {SafeAreaProvider,SafeAreaView} from 'react-native-safe-area-context';
 import {KeyboardProvider,KeyboardStickyView} from 'react-native-keyboard-controller';
@@ -57,6 +57,7 @@ function NativeVideo({url}:{url:string}){
 }
 function AgentJournal({turns,busy,stale}:{turns:ActivityTurn[];busy:boolean;stale:boolean}){
  const [expanded,setExpanded]=useState(false);
+ const [compact,setCompact]=useState(false);
  const [showHistory,setShowHistory]=useState(false);
  const withEvents=turns.filter(t=>t.events.length>0);
  const latest=turns[turns.length-1];
@@ -66,12 +67,12 @@ function AgentJournal({turns,busy,stale}:{turns:ActivityTurn[];busy:boolean;stal
  const done=latestEvents.filter(e=>e.status==='done').length;
  const failures=latestEvents.filter(e=>e.status==='failed').length;
  if(!busy&&!withEvents.length&&!stale)return null;
- const open=busy||expanded;
+ const open=busy?!compact:expanded;
  return <View style={{marginVertical:7,borderWidth:1,borderColor:C.border,borderRadius:15,backgroundColor:C.surface,overflow:'hidden'}}>
-  <Pressable accessibilityRole="button" accessibilityLabel="Journal des actions de Galingtosh" accessibilityState={{expanded:open}} onPress={()=>setExpanded(v=>!v)} disabled={busy} style={{flexDirection:'row',alignItems:'center',gap:9,padding:12}}>
+  <Pressable accessibilityRole="button" accessibilityLabel="Journal des actions de Galingtosh" accessibilityState={{expanded:open}} onPress={()=>{if(busy)setCompact(v=>!v);else setExpanded(v=>!v);}} style={{flexDirection:'row',alignItems:'center',gap:9,padding:12}}>
    {busy?<ActivityIndicator size="small" color={C.violet}/>:<Feather name="activity" size={19} color={C.violet}/>}
    <View style={{flex:1,gap:3}}><Text style={{color:C.text,fontWeight:'700',fontSize:14}}>Activité de Galingtosh</Text><Text style={{color:C.muted,fontSize:12}}>{busy?'Actions enregistrées par le serveur':latestEvents.length?`${done} confirmée(s)${failures?` · ${failures} en échec`:''}`:'Journal des demandes précédentes'}</Text></View>
-   {!busy?<Feather name={open?'chevron-up':'chevron-down'} size={18} color={C.muted}/>:null}
+   <Feather name={open?'chevron-up':'chevron-down'} size={18} color={C.muted}/>
   </Pressable>
   {open?<View style={{padding:12,paddingTop:0,gap:10}}>
    {stale?<Text style={{color:C.amber,fontSize:12}}>Actualisation indisponible. Les dernières actions reçues restent affichées.</Text>:null}
@@ -87,7 +88,7 @@ function AgentJournal({turns,busy,stale}:{turns:ActivityTurn[];busy:boolean;stal
     </View>)}
    </View>)}
    {historical.length>0?<Pressable accessibilityRole="button" accessibilityState={{expanded:showHistory}} onPress={()=>setShowHistory(v=>!v)} style={{paddingVertical:6}}><Text style={{color:C.violet,fontWeight:'600',fontSize:12}}>{showHistory?'Masquer les demandes précédentes':`Voir les demandes précédentes (${historical.length})`}</Text></Pressable>:null}
-   <Text style={{color:C.dim,fontSize:11}}>Le journal décrit les opérations, pas le raisonnement interne ni un pourcentage estimé.</Text>
+   <Text style={{color:C.dim,fontSize:11}}>Actions enregistrées par le serveur.</Text>
   </View>:null}
  </View>;
 }
@@ -106,7 +107,9 @@ function AppContent(){
  const [busy,setBusy]=useState(false);
  const [conversationId,setConversationId]=useState<string|null>(null);
  const [activity,setActivity]=useState<{conversationId:string;rows:ActivityRow[];stale:boolean}|null>(null);
+ const [priorTurnId,setPriorTurnId]=useState<string|null>(null);
  const activityTurns=useMemo(()=>activity&&activity.conversationId===conversationId?buildActivityTurns(activity.rows):[],[activity,conversationId]);
+ const visibleActivityTurns=busy&&priorTurnId&&activityTurns[activityTurns.length-1]?.id===priorTurnId?[...activityTurns,{id:'awaiting-new-turn',time:'',events:[]}]:activityTurns;
  const [activeProjectId,setActiveProjectId]=useState<string|null>(null);
  const [projects,setProjects]=useState<Project[]>([]);
  const [assets,setAssets]=useState<Asset[]>([]);
@@ -146,6 +149,7 @@ function AppContent(){
  const [messageMenu,setMessageMenu]=useState<Message|null>(null);
  const [selectedText,setSelectedText]=useState<string|null>(null);
  const [copiedId,setCopiedId]=useState<string|null>(null);
+ const [videoSharing,setVideoSharing]=useState(false);
  const [video,setVideo]=useState<{url:string;path:string;job?:RenderJob}|null>(null);
  const [videoLoading,setVideoLoading]=useState(false);
  const [projectQuery,setProjectQuery]=useState('');
@@ -174,7 +178,7 @@ function AppContent(){
   const sub=AccessibilityInfo.addEventListener('reduceMotionChanged',v=>{reduceMotion.current=v;});
   return()=>sub.remove();
  },[]);
- useEffect(()=>{if(previousTab.current!=='studio'&&tab==='studio')restoreOnMount.current=true;previousTab.current=tab;},[tab]);
+ useLayoutEffect(()=>{if(previousTab.current!=='studio'&&tab==='studio')restoreOnMount.current=true;previousTab.current=tab;},[tab]);
  useEffect(()=>{
   if(tab==='studio')return;
   const sub=BackHandler.addEventListener('hardwareBackPress',()=>{setTab('studio');return true;});
@@ -398,7 +402,7 @@ function AppContent(){
  async function sendMessage(){
   const text=draft.trim();if((!text&&!attachments.length)||busy||uploading||loadingProject)return;
   if(!supabaseConfigured||!user){Alert.alert('Connexion requise','Connectez-vous avec votre compte Galingtosh avant d’utiliser le Studio.');setTab('account');return;}
-  const epoch=requestEpoch.current;const attached=[...attachments];const msgId=String(Date.now());pendingAnchor.current=msgId;manualScroll.current=false;setShowJump(false);setTurnHeight(0);setMessages(m=>[...m,{id:msgId,role:'user',text:text||'Média joint',}]);Keyboard.dismiss();
+  const epoch=requestEpoch.current;const attached=[...attachments];setPriorTurnId(activityTurns[activityTurns.length-1]?.id||null);const msgId=String(Date.now());pendingAnchor.current=msgId;manualScroll.current=false;setShowJump(false);setTurnHeight(0);setMessages(m=>[...m,{id:msgId,role:'user',text:text||'Média joint',}]);Keyboard.dismiss();
   setDraft('');setAttachments([]);setBusy(true);
   let requestConversationId=conversationId;
   try{
@@ -452,7 +456,7 @@ function AppContent(){
   if(busy||uploading||loadingProject){Alert.alert('Opération en cours','Attendez la fin de l’opération avant de démarrer une nouvelle conversation.');return;}
   requestEpoch.current++;
   pendingAnchor.current=null;manualScroll.current=false;lastTurnRef.current={id:null,y:0,height:0};setTurnHeight(0);setShowJump(false);
-  setConversationId(null);setMessages([]);setDraft('');setAttachments([]);setPageError('');setTab('studio');
+  setConversationId(null);setMessages([]);setDraft('');setAttachments([]);setPageError('');projectPositions.current.delete(activeProjectId||'new');setPriorTurnId(null);setTab('studio');
  }
 
  async function startRender(projectId:string){
@@ -485,7 +489,7 @@ function AppContent(){
 
  return <SafeAreaProvider><SafeAreaView style={s.safe} edges={['top','left','right','bottom']}><ExpoStatusBar style="light"/><StatusBar barStyle="light-content" backgroundColor={C.bg}/>
   <LinearGradient colors={['#080611','#090714','#07050D']} style={StyleSheet.absoluteFill}/>
-  <View pointerEvents="none" style={s.glowTop}/><View pointerEvents="none" style={s.glowBottom}/>
+  <View pointerEvents="none" style={[s.glowTop,{opacity:.07}]}/>
   {tab==='studio'?<View style={s.studioToolbar}>
    <Pressable style={s.toolbarBrand} onPress={()=>setTab('studio')}><BrandMark size={35}/><Text style={s.toolbarTitle}>Galingtosh</Text></Pressable>
    <View style={s.toolbarActions}><Pressable style={s.toolbarButton} onPress={startNewConversation} accessibilityRole="button" accessibilityLabel="Nouvelle conversation"><Feather name="edit-3" size={19} color={C.text}/></Pressable><Pressable style={s.toolbarButton} onPress={()=>setTab('account')} accessibilityRole="button" accessibilityLabel="Ouvrir les paramètres"><Feather name="settings" size={19} color={C.muted}/></Pressable></View>
@@ -496,7 +500,7 @@ function AppContent(){
   {pageError? <Pressable onPress={()=>setPageError('')} style={s.errorBanner}><Text style={s.errorText}>{pageError}  ×</Text></Pressable>:null}
   <View style={s.main}>
    {tab==='studio'?<View style={s.flex}>
-    <View style={s.projectToolbar}><View style={{flex:1}}><Text style={s.sectionLabel}>{activeProject?'PROJET':'ESPACE DE TRAVAIL'}</Text><Text numberOfLines={1} style={s.projectName}>{activeProject?.title||'Aucun projet sélectionné'}</Text></View>{activeProjectId?<Pressable style={s.scenesButton} onPress={()=>{setShowFilm(true);loadFilm(activeProjectId).catch(()=>setPageError('Impossible de charger le film.'));}}><Feather name="layers" size={16} color={C.violet}/><Text style={s.scenesText}>Scènes</Text></Pressable>:<Pressable style={s.scenesButton} onPress={()=>setTab('projects')}><Feather name="folder" size={16} color={C.violet}/><Text style={s.scenesText}>Projets</Text></Pressable>}</View>
+    {activeProjectId?<View style={s.projectToolbar}><View style={{flex:1}}><Text style={s.sectionLabel}>PROJET</Text><Text numberOfLines={1} style={s.projectName}>{activeProject?.title||'Aucun projet sélectionné'}</Text></View>{activeProjectId?<Pressable style={s.scenesButton} onPress={()=>{setShowFilm(true);loadFilm(activeProjectId).catch(()=>setPageError('Impossible de charger le film.'));}}><Feather name="layers" size={16} color={C.violet}/><Text style={s.scenesText}>Scènes</Text></Pressable>:<Pressable style={s.scenesButton} onPress={()=>setTab('projects')}><Feather name="folder" size={16} color={C.violet}/><Text style={s.scenesText}>Projets</Text></Pressable>}</View>:null}
     {activeProject&&(activeJob||readyJob||latestJob?.status==='failed')?<View style={{marginHorizontal:18,marginVertical:6,padding:11,borderRadius:14,backgroundColor:C.surface2,gap:7}}>
       {activeJob?<View><View style={{flexDirection:'row',alignItems:'center',gap:7}}><ActivityIndicator size="small" color={C.violet}/><Text style={[s.cardTitle,{flex:1}]}>Production v{activeJob.film_version} · {JOB_LABELS[activeJob.status]}</Text><Text style={s.cardSub}>{activeJob.progress||0}%</Text></View><View style={s.progressTrack}><View style={[s.progressFill,{width:`${Math.max(0,Math.min(100,activeJob.progress||0))}%`}]}/></View></View>:null}
       {!activeJob&&latestJob?.status==='failed'?<Pressable onPress={()=>setTab('projects')} style={{flexDirection:'row',alignItems:'center',gap:8,minHeight:40}}><Feather name="alert-circle" size={20} color={C.amber}/><Text style={[s.cardSub,{flex:1}]}>La production v{latestJob.film_version} a échoué. Montage conservé.</Text><Feather name="chevron-right" color={C.muted} size={16}/></Pressable>:null}
@@ -515,7 +519,7 @@ function AppContent(){
       {messages.slice(0,Math.max(0,latestPromptIndex)).map(m=>renderChatMessage(m))}
       {latestPromptId?<View key={latestPromptId} style={{gap:18}} onLayout={e=>{const {y,height}=e.nativeEvent.layout;lastTurnRef.current={id:latestPromptId,y:y+12,height};setTurnHeight(height);anchorLatest();}}>
        {renderChatMessage(messages[latestPromptIndex])}
-       {(busy||activityTurns.some(t=>t.events.length)||activity?.conversationId===conversationId&&activity?.stale)?<View style={s.assistantRow}><BrandMark size={25}/><View style={s.assistantBody}><AgentJournal key={latestPromptId} turns={activityTurns} busy={busy} stale={Boolean(activity?.conversationId===conversationId&&activity?.stale)}/></View></View>:null}
+       {(busy||activityTurns.some(t=>t.events.length)||activity?.conversationId===conversationId&&activity?.stale)?<View style={s.assistantRow}><BrandMark size={25}/><View style={s.assistantBody}><AgentJournal key={latestPromptId} turns={visibleActivityTurns} busy={busy} stale={Boolean(activity?.conversationId===conversationId&&activity?.stale)}/></View></View>:null}
        {messages.slice(latestPromptIndex+1).map(m=>renderChatMessage(m))}
       </View>:messages.map(m=>renderChatMessage(m))}
       {latestPromptId?<View pointerEvents="none" style={{height:trailingSpace(viewport,turnHeight)}}/>:null}
@@ -541,7 +545,7 @@ function AppContent(){
       <Pressable onPress={()=>setProjectMenu(p)} accessibilityRole="button" accessibilityLabel={`Options de ${p.title}`} style={s.inlineAction}><Feather name="more-vertical" size={20} color={C.muted}/></Pressable></Panel>;
     })}
     {activeProject?<Panel style={s.renderPanel}><Text style={s.sectionLabel}>PRODUCTION</Text><Text style={s.cardTitle}>{activeProject.title}</Text><Button title="Lancer le rendu vidéo" onPress={()=>Alert.alert('Produire la vidéo ?', 'Le rendu utilisera la version actuelle du film. Vous pourrez continuer le montage pendant la production.',[{text:'Annuler',style:'cancel'},{text:'Lancer',onPress:()=>startRender(activeProject.id)}])} loading={renderBusy} disabled={busy||loadingProject||!!jobs.find(j=>j.project_id===activeProject.id&&['queued','running'].includes(j.status))} icon="play"/>{job&&job.project_id===activeProject.id?<View style={s.jobBox}><Text style={s.cardSub}>Rendu : {JOB_LABELS[job.status]||job.status} · {job.progress||0}%</Text><View style={s.progressTrack}><View style={[s.progressFill,{width:((Math.max(0,Math.min(100,job.progress||0)))+'%') as any}]}/></View>{job.error?<Pressable accessibilityRole="button" onPress={()=>Alert.alert('Détails de la production',job.error||'')}><Text style={[s.cardSub,{color:C.amber}]}>La production a échoué. Consulter les détails.</Text></Pressable>:null}{job.warnings?.map((w,i)=><Text key={i} style={[s.cardSub,{color:C.amber}]}>{w}</Text>)}{['queued','running'].includes(job.status)?<Button title="Annuler le rendu" secondary onPress={()=>Alert.alert('Annuler cette production ?','Le montage sera conservé.',[{text:'Continuer',style:'cancel'},{text:'Annuler le rendu',style:'destructive',onPress:async()=>{const {error}=await supabase.rpc('cancel_render',{p_job_id:job.id});if(error)Alert.alert('Annulation impossible','Réessayez.');else loadJobs(activeProjectId||undefined);}}])}/>:null}{job.output_path?<Button title="Ouvrir la vidéo MP4" onPress={()=>openRender(job.output_path)} secondary icon="download"/>:null}</View>:null}</Panel>:null}
-    <Text style={s.sectionLabel}>RENDU RÉCENT</Text>{jobs.slice(0,8).map(j=><Panel key={j.id} style={s.jobRow}><View style={{flex:1}}><Text style={s.cardTitle}>{projects.find(p=>p.id===j.project_id)?.title||"Production"} · v{j.film_version}</Text><Text style={s.cardSub}>{JOB_LABELS[j.status]||j.status} · {j.progress||0}%</Text>{j.error?<Pressable onPress={()=>Alert.alert('Détails de la production',j.error||'')} accessibilityRole="button"><Text style={[s.cardSub,{color:C.amber}]}>Production interrompue · Détails</Text></Pressable>:null}{j.warnings?.map((w,i)=><Text key={i} style={[s.cardSub,{color:C.amber}]}>{w}</Text>)}</View>{j.output_path?<Pressable onPress={()=>openRender(j.output_path)}><Feather name="download" size={20} color={C.violet}/></Pressable>:null}</Panel>)}
+    <Text style={[s.sectionLabel,{marginTop:22}]}>VERSIONS ET PRODUCTIONS RÉCENTES</Text>{jobs.slice(0,8).map(j=><Panel key={j.id} style={s.jobRow}><View style={{flex:1}}><Text style={s.cardTitle}>{projects.find(p=>p.id===j.project_id)?.title||"Production"} · v{j.film_version}</Text><Text style={s.cardSub}>{JOB_LABELS[j.status]||j.status} · {j.progress||0}%</Text>{j.error?<Pressable onPress={()=>Alert.alert('Détails de la production',j.error||'')} accessibilityRole="button"><Text style={[s.cardSub,{color:C.amber}]}>Production interrompue · Détails</Text></Pressable>:null}{j.warnings?.map((w,i)=><Text key={i} style={[s.cardSub,{color:C.amber}]}>{w}</Text>)}</View>{j.output_path?<Pressable onPress={()=>openRender(j.output_path)}><Feather name="download" size={20} color={C.violet}/></Pressable>:null}</Panel>)}
    </ScrollView>:null}
    {tab==='media'?<ScrollView contentContainerStyle={s.pageContent}>
     <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:13}}><Text style={s.pageTitle}>Médias</Text><Pressable accessibilityRole="button" accessibilityLabel="Importer un média" style={s.inlineAction} onPress={()=>{setTab('studio');addAttachment();}}><Feather name="plus-circle" size={27} color={C.violet}/></Pressable></View>
@@ -562,7 +566,7 @@ function AppContent(){
   </View>
   {!keyboardVisible&&<View style={s.nav}>{([{id:'studio',label:'Studio',icon:'message-circle'},{id:'projects',label:'Projets',icon:'film'},{id:'media',label:'Médias',icon:'grid'}] as const).map(item=><Pressable key={item.id} onPress={()=>setTab(item.id)} accessibilityRole="tab" accessibilityState={{selected:tab===item.id}} style={s.navItem}><Feather name={item.icon as any} size={20} color={tab===item.id?C.violet:C.dim}/><Text style={[s.navText,tab===item.id&&{color:C.text}]}>{item.label}</Text>{tab===item.id?<View style={s.navIndicator}/>:null}</Pressable>)}</View>}
 
-  <Modal visible={!!video} animationType="slide" onRequestClose={()=>setVideo(null)}><SafeAreaView style={s.filmModal}><View style={s.modalHeader}><Pressable style={s.inlineAction} accessibilityRole="button" accessibilityLabel="Fermer la vidéo" onPress={()=>setVideo(null)}><Feather name="arrow-left" size={22} color={C.text}/></Pressable><Text style={s.cardTitle}>Aperçu du film</Text><View style={{width:48}}/></View>{video?<ScrollView contentContainerStyle={{gap:14,paddingVertical:18}}><NativeVideo key={video.path} url={video.url}/><Text style={s.pageTitle}>{projects.find(p=>p.id===video.job?.project_id)?.title||'Vidéo produite'}</Text><Text style={s.cardSub}>MP4{video.job?` · Version ${video.job.film_version}`:''}</Text><Button title="Télécharger le MP4" secondary icon="download" onPress={()=>Linking.openURL(video.url).catch(()=>Alert.alert('Téléchargement impossible'))}/><Button title="Modifier dans le Studio" icon="edit-3" disabled={!video.job?.project_id||busy} onPress={()=>{const id=video.job?.project_id;setVideo(null);if(id){if(id===activeProjectId)setTab('studio');else void openProject(id);}}}/><Text style={s.cardMeta}>Les versions précédentes restent disponibles dans Projets.</Text></ScrollView>:null}</SafeAreaView></Modal>
+  <Modal visible={!!video} animationType="slide" onRequestClose={()=>setVideo(null)}><SafeAreaView style={s.filmModal}><View style={s.modalHeader}><Pressable style={s.inlineAction} accessibilityRole="button" accessibilityLabel="Fermer la vidéo" onPress={()=>setVideo(null)}><Feather name="arrow-left" size={22} color={C.text}/></Pressable><Text style={s.cardTitle}>Aperçu du film</Text><View style={{width:48}}/></View>{video?<ScrollView contentContainerStyle={{gap:14,paddingVertical:18}}><NativeVideo key={video.path} url={video.url}/><Text style={s.pageTitle}>{projects.find(p=>p.id===video.job?.project_id)?.title||'Vidéo produite'}</Text><Text style={s.cardSub}>MP4{video.job?` · Version ${video.job.film_version}`:''}</Text><Button title="Télécharger le MP4" secondary icon="download" onPress={async()=>{try{const url=await getRenderDownloadUrl(video.path);await Linking.openURL(url);}catch{Alert.alert('Téléchargement impossible','Vérifiez la connexion.');}}}/><Button title="Modifier dans le Studio" icon="edit-3" disabled={!video.job?.project_id||busy} onPress={()=>{const id=video.job?.project_id;setVideo(null);if(id){if(id===activeProjectId)setTab('studio');else void openProject(id);}}}/><Button title="Partager un lien temporaire" secondary icon="share-2" loading={videoSharing} onPress={async()=>{setVideoSharing(true);try{const url=await getRenderDownloadUrl(video.path);await Share.share({message:'Vidéo Galingtosh — lien privé temporaire (15 minutes) : '+url});}catch{Alert.alert('Partage impossible','Réessayez.');}finally{setVideoSharing(false);}}}/><Text style={s.cardMeta}>Les versions précédentes restent disponibles dans Projets.</Text></ScrollView>:null}</SafeAreaView></Modal>
   <Modal visible={!!projectMenu} transparent animationType="fade" onRequestClose={()=>setProjectMenu(null)}><View style={s.modalRoot}><Pressable style={s.scrim} onPress={()=>setProjectMenu(null)}/><View style={s.modalCard}><Text style={s.cardTitle}>{projectMenu?.title}</Text><Button title="Ouvrir dans le Studio" onPress={()=>{const p=projectMenu;setProjectMenu(null);if(p)void openProject(p.id);}} icon="message-circle"/><Button title="Renommer" secondary icon="edit-3" onPress={()=>{setRenameProject(projectMenu);setRenameTitle(projectMenu?.title||'');setProjectMenu(null);}}/>{jobs.find(j=>j.project_id===projectMenu?.id&&j.status==='done'&&j.output_path)?<Button title="Regarder la dernière vidéo" secondary icon="play" onPress={()=>{const j=jobs.find(j=>j.project_id===projectMenu?.id&&j.status==='done'&&j.output_path);setProjectMenu(null);if(j)void openRender(j.output_path);}}/>:null}<Button title="Fermer" secondary onPress={()=>setProjectMenu(null)}/></View></View></Modal>
   <Modal visible={!!renameProject} transparent animationType="fade" onRequestClose={()=>setRenameProject(null)}><View style={s.modalRoot}><Pressable style={s.scrim} onPress={()=>setRenameProject(null)}/><View style={s.modalCard}><Text style={s.cardTitle}>Renommer le projet</Text><Field value={renameTitle} onChangeText={setRenameTitle} placeholder="Nom du projet"/><Button title="Enregistrer" disabled={!renameTitle.trim()||savingProject} loading={savingProject} onPress={async()=>{if(!renameProject||!renameTitle.trim()||!user)return;setSavingProject(true);try{const {error}=await supabase.from('projects').update({title:renameTitle.trim()}).eq('id',renameProject.id).eq('user_id',user.id);if(error)throw error;setRenameProject(null);await loadProjects();}catch{Alert.alert('Modification impossible','Le nom du projet est conservé.');}finally{setSavingProject(false);}}}/><Button title="Annuler" secondary onPress={()=>setRenameProject(null)}/></View></View></Modal>
   <Modal visible={!!assetDetail} animationType="slide" onRequestClose={()=>setAssetDetail(null)}><SafeAreaView style={s.filmModal}><View style={s.modalHeader}><Text style={s.cardTitle}>Détails du média</Text><Pressable style={s.inlineAction} accessibilityRole="button" accessibilityLabel="Fermer" onPress={()=>setAssetDetail(null)}><Feather name="x" size={23} color={C.text}/></Pressable></View>{assetDetail?<ScrollView contentContainerStyle={{paddingVertical:16,gap:12}}>{assetDetail.preview?<Image source={{uri:assetDetail.preview}} style={{width:'100%',aspectRatio:16/9,borderRadius:12}} resizeMode="contain"/>:null}<Text style={s.cardTitle}>{assetDetail.provenance?.title||assetDetail.analysis?.original_name||'Média importé'}</Text><Text style={s.cardSub}>Source : {assetDetail.source}</Text><Text style={s.cardSub}>Licence : {assetDetail.license||'Droits à vérifier'}</Text><Text style={s.cardSub}>Auteur : {assetDetail.provenance?.author||'Non renseigné'}</Text>{Array.isArray(assetDetail.provenance?.restrictions)?assetDetail.provenance.restrictions.map((r:string,i:number)=><Text key={i} style={[s.cardSub,{color:C.amber}]}>{r}</Text>):null}{assetDetail.provenance?.url&&/^https?:\/\//.test(assetDetail.provenance.url)?<Button title="Consulter la source" secondary onPress={()=>Linking.openURL(assetDetail.provenance.url).catch(()=>Alert.alert('Lien indisponible'))} icon="external-link"/>:null}<Button title="Joindre à la conversation" disabled={assetDetail.project_id!==activeProjectId||attachments.length>=10} onPress={()=>{const a=assetDetail;if(a){setAttachments(v=>v.some(x=>x.id===a.id)?v:[...v,{id:a.id,path:a.storage_path||a.id,name:a.provenance?.title||a.analysis?.original_name||'Média'}]);setAssetDetail(null);setTab('studio');}}} icon="paperclip"/>{assetDetail.project_id!==activeProjectId?<Text style={s.cardSub}>Ouvre d’abord le projet associé pour joindre ce média.</Text>:null}</ScrollView>:null}</SafeAreaView></Modal>
