@@ -17,3 +17,109 @@
 @media(max-width:620px){body{overflow:hidden}.shell{height:100dvh}.topbar{height:53px;padding:0 13px}.crumb{max-width:190px;font-size:11px}.header-left,.top-actions{gap:6px}.top-actions>.connected{display:none}.top-actions>.avatar{width:29px;height:29px;min-width:29px}.header-left>.icon-button,.top-actions>.icon-button{width:35px;height:35px;border:none;background:none}.studio-head{padding:13px 17px 12px;gap:8px}.studio-head h1{font-size:18px;max-width:260px;margin:4px 0}.studio-head p{display:none}.studio-head .overline{font-size:8px}.head-actions .outline{padding:7px 9px;min-height:37px;font-size:11px}.head-actions>.icon-button{width:36px;height:36px}.studio-body{min-height:0}.chat-column{border:0}.conversation{padding:16px 15px 20px;gap:17px}.conversation .empty{padding:32px 17px}.compose-wrap{padding:7px 11px 8px}.composer{padding:5px 6px 5px 9px;min-height:54px;border-radius:20px;gap:7px}.composer textarea{font-size:13px}.send-btn{width:41px;height:41px;border-radius:14px}.composer-caption{font-size:9px;margin-top:5px}.proposal-banner{margin:8px 12px 0;padding:10px 11px;border-radius:12px}.proposal-head strong{font-size:11px}.proposal-head small{font-size:10px;max-width:210px}.proposal-head .text-link{font-size:10px;padding:4px}.proposal-actions{margin-top:9px}.proposal-actions .primary,.proposal-actions .outline{flex:1;min-height:36px;font-size:11px;padding:8px}.proposal-banner>small{font-size:10px;margin-top:7px}.live-banner{margin:8px 12px 0;padding:8px 11px;border-radius:11px;width:calc(100% - 24px)}.live-banner strong{font-size:11px}.live-banner small{font-size:10px;margin-top:2px}.activity-details{margin:5px 12px 0;padding:10px;max-height:170px}.mobile-nav{display:flex;align-items:center;justify-content:space-around;background:#120e1b;border-top:1px solid #382842;height:56px;flex:none}.mobile-nav button{background:none;border:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;flex:1;color:#8d809d;font-size:9px;font-weight:700}.mobile-nav button.active{color:#b574ff}.page{padding:22px 16px 65px}.page-title{align-items:flex-start}.page-title h1{font-size:25px}.page-title p{font-size:11px}.page-title .primary{padding:7px 10px;font-size:11px}.project-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.project-info{padding:11px}.project-info h3{font-size:13px}.project-cover>span{font-size:8px}.asset-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.render-cta{flex-direction:column;align-items:flex-start}.dialog{max-height:90dvh}.dialog-head{padding:13px 15px}.dialog-body{padding:15px}.scenes-grid{grid-template-columns:1fr}.auth-layout{grid-template-columns:1fr;gap:28px;padding:22px 18px}.auth-story .brand{margin-bottom:35px}.auth-story h1{font-size:49px}.auth-story>p{font-size:12px}.auth-story .hero-pill{font-size:9px}.auth-benefits{margin-top:17px}.auth-box{padding:23px}.auth-story .brand-copy span{font-size:8px}.auth-story .brand-copy strong{font-size:20px}}
 @media(max-height:700px) and (max-width:620px){.studio-head{padding-top:7px;padding-bottom:7px}.composer-caption{display:none}.mobile-nav{height:49px}.proposal-head small{display:none}.proposal-banner>small{display:none}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important;animation-duration:.01ms!important}}
+
+/* Android visual parity — one canvas, not a competing desktop dashboard.
+   Keep old project/media layouts usable; Studio is intentionally empty
+   until the user sends a message or an actual mission has activity. */
+.shell{background:#090613}
+.sidebar,.mobile-scrim,.inspector{display:none!important}
+.workspace{width:100%;min-width:0}
+.topbar.android-header{
+  height:102px;min-height:102px;padding:0 32px;
+  display:flex;justify-content:space-between;align-items:center;
+  border:0;background:transparent;
+}
+.android-header .brand{gap:16px}
+.android-header .brand-icon{height:62px;width:62px;border-radius:19px;box-shadow:none}
+.android-header .brand-icon svg{height:30px;width:30px}
+.android-header .brand-copy strong{font-size:30px;letter-spacing:-.045em}
+.android-header .brand-copy span{display:none}
+.android-header .top-actions{gap:14px}
+.android-action{
+ height:64px;width:64px;border-radius:23px;
+ border:1px solid #382b4f;background:#171222;
+ color:#ded4f0;display:flex;align-items:center;justify-content:center;
+}
+.android-action:hover{background:#281c3a;border-color:#715292}
+.android-action:focus-visible{outline-offset:3px}
+.studio{min-height:0}
+.studio-body{display:flex;flex:1;min-height:0}
+.studio-head.android-project-header{
+ background:transparent;border:0;padding:13px 32px 12px;
+ gap:22px;align-items:center
+}
+.android-project-header .overline{font-size:12px;letter-spacing:.24em;color:#9b8ea9;margin-bottom:16px}
+.android-project-header h1{font-size:21px;max-width:min(70vw,700px);margin:0;white-space:nowrap}
+.scenes-action{
+ border:1px solid #342a47;background:#1b152b;border-radius:18px;
+ padding:14px 18px;display:flex;align-items:center;gap:10px;
+ font-size:14px;font-weight:800;color:#eee8f6;min-height:54px;
+}
+.scenes-action svg{color:#b35efa}
+.chat-column{border:0;background:transparent}
+.conversation{padding:22px max(22px,calc((100% - 940px)/2)) 25px;scroll-behavior:auto}
+.conversation .empty{display:none}
+.compose-wrap{background:transparent;padding:13px 30px 20px;border-top:0}
+.composer{
+ min-height:78px;border-radius:42px;border:2px solid #59466d;
+ background:#1a1525;padding:9px 12px 9px 20px;gap:14px;
+}
+.composer textarea{font-size:17px;font-weight:500;color:#eee5f7;max-height:110px;resize:none}
+.composer textarea::placeholder{color:#91839f}
+.composer .attach{width:44px;height:44px;color:#b5a2cb}
+.composer .attach svg{width:25px;height:25px}
+.send-btn{height:59px;width:59px;border-radius:50%;box-shadow:none}
+.send-btn svg{height:25px;width:25px}
+.proposal-banner,.live-banner{max-width:880px;width:calc(100% - 52px);margin-left:auto;margin-right:auto}
+.proposal-banner{flex-shrink:0}
+.activity-details{max-width:880px;width:calc(100% - 52px);margin-left:auto;margin-right:auto}
+.mobile-nav.android-tabs{
+ display:flex!important;height:89px;min-height:89px;flex-shrink:0;
+ background:#100c1c;border-top:1px solid #30213f;
+ justify-content:space-around;align-items:stretch;
+}
+.android-tabs button{
+ background:transparent;border:0;display:flex;flex:1;flex-direction:column;
+ justify-content:center;align-items:center;gap:8px;
+ position:relative;color:#998da8;font-weight:800;font-size:12px;
+ max-width:220px;
+}
+.android-tabs button svg{height:27px;width:27px}
+.android-tabs button.active{color:#f7f0ff}
+.android-tabs button.active svg{color:#b05bff}
+.android-tabs button.active::before{
+ content:"";position:absolute;top:0;left:calc(50% - 24px);width:48px;height:3px;
+ border-radius:10px;background:#a652f7
+}
+.page{background:#090613}
+@media(max-width:620px){
+ .topbar.android-header{height:96px;min-height:96px;padding:0 18px 0 17px}
+ .android-header .brand{gap:10px}
+ .android-header .brand-icon{height:45px;width:45px;border-radius:13px}
+ .android-header .brand-icon svg{width:24px;height:24px}
+ .android-header .brand-copy strong{font-size:23px;letter-spacing:-.052em}
+ .android-header .top-actions{gap:11px}
+ .android-action{height:48px;width:48px;border-radius:19px}
+ .android-action svg{width:22px;height:22px}
+ .studio-head.android-project-header{padding:5px 18px 13px}
+ .android-project-header .overline{font-size:10px;margin-bottom:10px}
+ .android-project-header h1{font-size:19px;max-width:63vw}
+ .scenes-action{min-height:46px;border-radius:16px;padding:10px 12px;font-size:12px}
+ .conversation{padding:14px 17px 20px}
+ .compose-wrap{padding:6px 13px 10px}
+ .composer{min-height:60px;padding:7px 8px 7px 13px;gap:7px;border-radius:34px}
+ .composer textarea{font-size:14px;line-height:1.5}
+ .composer .attach{width:33px;height:38px}
+ .composer .attach svg{height:22px;width:22px}
+ .send-btn{height:47px;width:47px;border-radius:50%}
+ .send-btn svg{height:21px;width:21px}
+ .mobile-nav.android-tabs{height:68px;min-height:68px;padding-bottom:env(safe-area-inset-bottom)}
+ .android-tabs button{gap:5px;font-size:11px}
+ .android-tabs button svg{height:23px;width:23px}
+ .proposal-banner,.live-banner,.activity-details{width:calc(100% - 28px)}
+}
+@media(max-width:375px){
+ .android-header .brand-copy strong{font-size:20px}
+ .android-header .top-actions{gap:6px}
+ .android-action{height:44px;width:44px}
+}
