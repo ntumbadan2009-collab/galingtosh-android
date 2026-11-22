@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useMemo,useRef,useState,type FormEvent,type ChangeEvent} from 'react';
-import {Activity,ArrowRight,Check,CheckCircle2,ChevronDown,ChevronRight,Clapperboard,Clock3,Download,Edit3,ExternalLink,Film,FolderOpen,Grid2X2,Image as ImageIcon,Layers3,LoaderCircle,LogOut,Menu,MessageCircle,MoreHorizontal,Paperclip,Pause,Play,Plus,RefreshCw,Search,Send,Settings2,ShieldCheck,Sparkles,UploadCloud,Video,X,AlertCircle,Copy} from 'lucide-react';
+import {Activity,ArrowRight,Check,CheckCircle2,ChevronDown,ChevronRight,Clapperboard,Clock3,Download,Edit3,ExternalLink,Film,FolderOpen,Grid2X2,Image as ImageIcon,Layers3,LoaderCircle,LogOut,MessageCircle,Paperclip,Pause,Play,Plus,Search,Send,Settings2,ShieldCheck,Sparkles,UploadCloud,Video,X,AlertCircle,Copy} from 'lucide-react';
 import type {LucideIcon} from 'lucide-react';
 import {db,listProjects,listRenders,listAssets,listConversations,listMessages,listMissionTasks,latestMission,latestFilm,createProject,sendChat,missionCommand,requestRender,signedOutput,signedAsset,uploadAsset,stageName,statusLabel,planTitle,type Project,type Message,type Asset,type Render,type Mission,type Task,type Film as FilmData,type Tab} from './api';
 type Attachment={id:string;name:string};
