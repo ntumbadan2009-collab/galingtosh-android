@@ -181,7 +181,7 @@ export function App(){
    <div className="sidebar-bottom"><div className="online-status"><span className="green-dot"/> Services synchronisés</div><button className="profile-row" onClick={()=>setDialog('settings')}><span className="avatar">{(user.email||'G')[0].toUpperCase()}</span><span className="profile-copy"><strong>Mon espace</strong><small>{user.email||'Compte Galingtosh'}</small></span><Settings2 size={18}/></button></div>
   </aside>
   <main className="workspace">
-   <header className="topbar android-header">
+   <header className={'topbar android-header '+(tab==='studio'?'native-studio-head':'native-page-head')}>
     <div className="brand-with-tagline"><Brand small/>{tab!=='studio'&&<span className="android-tagline">CRÉEZ · MONTEZ · PARTAGEZ</span>}</div>
     <div className="top-actions">
      {tab==='studio'&&<button className="android-action" aria-label="Nouvelle conversation" title="Nouvelle conversation" onClick={startNewConversation}><Edit3 size={24}/></button>}
