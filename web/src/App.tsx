@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useMemo,useRef,useState,type FormEvent,type ChangeEvent} from 'react';
-import {Activity,ArrowRight,Check,CheckCircle2,ChevronDown,ChevronRight,Clapperboard,Clock3,Download,Edit3,ExternalLink,Film,FolderOpen,Grid2X2,Image as ImageIcon,Layers3,LoaderCircle,LogOut,MessageCircle,MoreVertical,Paperclip,Pause,Play,Plus,Search,Send,Settings2,ShieldCheck,Sparkles,UploadCloud,Video,X,AlertCircle,Copy} from 'lucide-react';
+import {Activity,ArrowRight,Check,CheckCircle2,ChevronDown,ChevronRight,Clapperboard,Clock3,Download,Edit3,ExternalLink,Film,FolderOpen,Grid2X2,Image as ImageIcon,Layers3,LoaderCircle,LogOut,MessageCircle,MoreVertical,Paperclip,Pause,Play,Plus,Send,Settings2,ShieldCheck,Sparkles,UploadCloud,Video,X,AlertCircle,Copy} from 'lucide-react';
 import type {LucideIcon} from 'lucide-react';
 import {db,listProjects,listRenders,listAssets,listConversations,listMessages,listMissionTasks,latestMission,latestFilm,createProject,sendChat,missionCommand,requestRender,signedOutput,signedAsset,uploadAsset,stageName,statusLabel,planTitle,type Project,type Message,type Asset,type Render,type Mission,type Task,type Film as FilmData,type Tab} from './api';
 type Attachment={id:string;name:string};
@@ -103,7 +103,7 @@ export function App(){
  }
  async function create(e:FormEvent){e.preventDefault();if(!createTitle.trim()||actionBusy)return;setActionBusy(true);try{const p=await createProject(createTitle.trim(),createBrief.trim());setDialog(null);setCreateTitle('');setCreateBrief('');await refreshGlobal();setProjects(v=>[p,...v.filter(x=>x.id!==p.id)]);await openProject(p.id);}catch(e){alertError(e)}finally{setActionBusy(false)}}
  async function upload(e:ChangeEvent<HTMLInputElement>){const file=e.target.files?.[0];e.target.value='';if(!file||!user||!projectId||busy)return;setActionBusy(true);try{const id=await uploadAsset(file,projectId,user.id);setAttachments(v=>[...v,{id,name:file.name}]);setAssets(await listAssets());setTab('studio');}catch(e){alertError(e)}finally{setActionBusy(false)}}
- async function renderProject(){if(!projectId||actionBusy||isActiveMission)return;setActionBusy(true);try{await requestRender(projectId);setJobs(await listRenders());}catch(e){alertError(e)}finally{setActionBusy(false)}}
+ async function renderSpecificProject(id:string){if(actionBusy)return;setActionBusy(true);try{await requestRender(id);setJobs(await listRenders());setProjectMenuId(null);}catch(e){alertError(e)}finally{setActionBusy(false)}}
  async function playRender(path:string){try{setPreviewAsset(null);setPreviewUrl(await signedOutput(path));}catch(e){alertError(e)}}
  async function playAsset(a:Asset){try{const url=await signedAsset(a);if(!url)throw Error('Aucun aperçu disponible pour ce média.');setPreviewAsset(a);setPreviewUrl(url);}catch(e){alertError(e)}}
  async function renameProject(){const id=projectMenuId||projectId;if(!id||!renameValue.trim()||actionBusy||!user)return;setActionBusy(true);try{const{error}=await db.from('projects').update({title:renameValue.trim()}).eq('id',id).eq('user_id',user.id);if(error)throw error;setProjectMenu(false);setProjectMenuId(null);await refreshGlobal();}catch(e){alertError(e)}finally{setActionBusy(false)}}
@@ -177,6 +177,7 @@ export function App(){
            <button onClick={()=>{setProjectMenuId(null);void openProject(p.id)}}><MessageCircle size={16}/> Ouvrir le Studio</button>
            <button onClick={()=>{setProjectMenuId(p.id);setRenameValue(p.title);setProjectMenu(true)}}><Edit3 size={16}/> Renommer</button>
            {ready?.output_path&&<button onClick={()=>{setProjectMenuId(null);void playRender(ready.output_path!)}}><Play size={16}/> Voir la dernière vidéo</button>}
+           {!['queued','running'].includes(r?.status||'')&&<button onClick={()=>{if(window.confirm('Lancer un rendu de la version actuelle du projet ?'))void renderSpecificProject(p.id)}}><Clapperboard size={16}/> Lancer le rendu</button>}
            <button onClick={()=>setProjectMenuId(null)}><X size={16}/> Fermer</button>
          </div>}
       </article>
