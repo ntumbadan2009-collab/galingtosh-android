@@ -123,3 +123,62 @@
  .android-header .top-actions{gap:6px}
  .android-action{height:44px;width:44px}
 }
+
+/* Fix the actual shell layout, not just element dimensions.
+   The tabs are a sibling of .workspace and MUST occupy the bottom row,
+   otherwise the page shrinks to a narrow left column on Android Chrome. */
+.shell{
+  display:flex;
+  flex-direction:column;
+  width:100%;
+  min-width:0;
+  height:100dvh;
+  overflow:hidden;
+}
+.workspace{
+  display:flex;
+  flex:1 1 auto;
+  flex-direction:column;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  min-height:0;
+  overflow:hidden;
+}
+.studio,.studio-body,.chat-column{
+  min-width:0;
+  width:100%;
+  max-width:100%;
+  min-height:0;
+}
+.compose-wrap{
+  width:100%;
+  flex:0 0 auto;
+  min-width:0;
+}
+.composer{width:100%;max-width:100%;min-width:0}
+.composer textarea{min-width:0;width:100%}
+.mobile-nav.android-tabs{
+  position:relative;
+  inset:auto;
+  order:2;
+  z-index:5;
+  box-sizing:border-box;
+  flex:0 0 auto;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  margin:0;
+}
+.android-tabs button{min-width:0}
+.topbar.android-header{width:100%;min-width:0;flex:0 0 auto}
+.android-header .brand{min-width:0;flex:1 1 auto;overflow:hidden}
+.android-header .brand-copy{min-width:0;overflow:hidden}
+.android-header .brand-copy strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.android-header .top-actions{flex:0 0 auto}
+@media(max-width:620px){
+ .shell,.workspace{width:100vw;max-width:100vw}
+ .studio-body,.chat-column{width:100%;max-width:100%}
+ .android-header .brand-copy strong{max-width:calc(100vw - 205px)}
+ .mobile-nav.android-tabs{width:100%;max-width:100%;height:72px;min-height:72px}
+}
