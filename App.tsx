@@ -14,6 +14,7 @@ import {supabase,supabaseConfigured,SUPABASE_URL} from './src/lib/supabase';
 import {sendToAgent,recoverAgentResponse} from './src/lib/ai';
 import {buildActivityTurns,type ActivityRow,type ActivityTurn} from './src/lib/agentActivity';
 import {trailingSpace,anchorOffset,canAnchor} from './src/lib/chatLayout';
+import {readProduction,controlProduction,activeProduction,PRODUCTION_LABELS,type ProductionMission,type MissionTask} from './src/lib/production';
 import {getRenderDownloadUrl,getRenderJob,listRenderJobs,requestRender,RenderJob} from './src/lib/render';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -111,6 +112,12 @@ function AppContent(){
  const activityTurns=useMemo(()=>activity&&activity.conversationId===conversationId?buildActivityTurns(activity.rows):[],[activity,conversationId]);
  const visibleActivityTurns=busy&&priorTurnId&&activityTurns[activityTurns.length-1]?.id===priorTurnId?[...activityTurns,{id:'awaiting-new-turn',time:'',events:[]}]:activityTurns;
  const [activeProjectId,setActiveProjectId]=useState<string|null>(null);
+ const [production,setProduction]=useState<{mission:ProductionMission|null;tasks:MissionTask[]}|null>(null);
+ const [productionControlBusy,setProductionControlBusy]=useState(false);
+ const [missionExpanded,setMissionExpanded]=useState(false);
+ const mission=production?.mission?.project_id===activeProjectId?production.mission:null;
+ const missionActive=activeProduction(mission);
+ const missionWorking=!!mission&&['queued','running','waiting_render'].includes(mission.status);
  const [projects,setProjects]=useState<Project[]>([]);
  const [assets,setAssets]=useState<Asset[]>([]);
  const [attachments,setAttachments]=useState<Attachment[]>([]);
@@ -253,7 +260,7 @@ function AppContent(){
   if(busy||uploading||loadingProject){Alert.alert('Opération en cours','Attendez la fin de l’opération avant de changer de projet.');return;}
   const epoch=++requestEpoch.current;
   pendingAnchor.current=null;manualScroll.current=false;lastTurnRef.current={id:null,y:0,height:0};setTurnHeight(0);setShowJump(false);
-  setActiveProjectId(id);setConversationId(null);setMessages([]);setAttachments([]);setDraft('');setFilm(null);setJob(null);setJobs([]);setAssets([]);setTab('studio');setLoadingProject(true);setPageError('');
+  setProduction(null);setMissionExpanded(false);setActiveProjectId(id);setConversationId(null);setMessages([]);setAttachments([]);setDraft('');setFilm(null);setJob(null);setJobs([]);setAssets([]);setTab('studio');setLoadingProject(true);setPageError('');
   try{
    const {data:c,error}=await supabase.from('conversations').select('id').eq('project_id',id).order('created_at',{ascending:false}).limit(1).maybeSingle();
    if(error)throw error;
@@ -306,9 +313,43 @@ function AppContent(){
   };
   void refresh();
   const sub=AppState.addEventListener('change',state=>{if(state==='active')void refresh();});
-  const timer=busy?setInterval(()=>void refresh(),2500):null;
+  const timer=busy||missionWorking?setInterval(()=>void refresh(),2500):null;
   return()=>{disposed=true;sub.remove();if(timer)clearInterval(timer);};
- },[user?.id,conversationId,tab,busy]);
+ },[user?.id,conversationId,tab,busy,missionWorking]);
+
+ useEffect(()=>{
+  if(!user||!activeProjectId)return;
+  const id=activeProjectId,epoch=requestEpoch.current;
+  let disposed=false,reading=false;
+  const refresh=async()=>{
+   if(disposed||reading||AppState.currentState!=='active')return;
+   reading=true;
+   try{
+    const value=await readProduction(id);
+    if(!disposed&&epoch===requestEpoch.current)setProduction(value);
+   }catch{/* Older backend or connectivity loss: do not invent a mission state. */}
+   finally{reading=false;}
+  };
+  void refresh();
+  const sub=AppState.addEventListener('change',v=>{if(v==='active')void refresh();});
+  const timer=setInterval(()=>void refresh(),4000);
+  return()=>{disposed=true;clearInterval(timer);sub.remove();};
+ },[user?.id,activeProjectId,busy]);
+ useEffect(()=>{
+  if(mission?.status!=='done'||!activeProjectId)return;
+  void loadJobs(activeProjectId);void loadFilm(activeProjectId).catch(()=>{});void loadAssets(activeProjectId);
+ },[mission?.id,mission?.status]);
+ async function runMissionCommand(command:'approve'|'pause'|'resume'|'cancel'){
+  if(!mission||productionControlBusy)return;
+  const id=mission.id,projectId=mission.project_id,epoch=requestEpoch.current;
+  setProductionControlBusy(true);
+  try{
+   await controlProduction(id,command);
+   const current=await readProduction(projectId);
+   if(epoch===requestEpoch.current)setProduction(current);
+  }catch{if(epoch===requestEpoch.current)Alert.alert('Commande non confirmée','Le projet reste enregistré. Réessaie après avoir vérifié la connexion.');}
+  finally{setProductionControlBusy(false);}
+ }
 
  async function handleAuthUrl(url:string){
   if(!url.startsWith(REDIRECT)||handledUrls.current.has(url))return;
@@ -461,6 +502,7 @@ function AppContent(){
 
  async function startRender(projectId:string){
   if(renderBusy)return;
+  if(missionActive){Alert.alert('Production autonome active','Cette mission gère elle-même le rendu.');return;}
   try{setRenderBusy(true);const queued=await requestRender(projectId);const next=await getRenderJob(queued.job_id);setJob(next);await loadJobs(projectId);Alert.alert('Rendu lancé','Votre film est dans la file de production.');}
   catch(e:any){Alert.alert('Production impossible',e.message||'Vérifiez les plans et les médias du film.');}
   finally{setRenderBusy(false);}
@@ -506,6 +548,20 @@ function AppContent(){
       {!activeJob&&latestJob?.status==='failed'?<Pressable onPress={()=>setTab('projects')} style={{flexDirection:'row',alignItems:'center',gap:8,minHeight:40}}><Feather name="alert-circle" size={20} color={C.amber}/><Text style={[s.cardSub,{flex:1}]}>La production v{latestJob.film_version} a échoué. Montage conservé.</Text><Feather name="chevron-right" color={C.muted} size={16}/></Pressable>:null}
       {readyJob?<Pressable accessibilityRole="button" accessibilityLabel={`Regarder la vidéo version ${readyJob.film_version}`} onPress={()=>openRender(readyJob.output_path)} style={{flexDirection:'row',alignItems:'center',gap:9,minHeight:48}}><Feather name="play-circle" size={24} color={C.violet}/><View style={{flex:1}}><Text style={s.cardTitle}>{activeJob||latestJob?.status==='failed'?'Dernière vidéo disponible':'Vidéo prête à regarder'}</Text><Text style={s.cardSub}>Version {readyJob.film_version}{readyJob.film_version<filmVersion?' · montage plus récent disponible':''}</Text></View><Feather name="chevron-right" size={18} color={C.muted}/></Pressable>:null}
     </View>:null}
+    {mission?<View style={{marginHorizontal:18,marginVertical:5,borderRadius:14,backgroundColor:C.surface2,padding:12,gap:8}}>
+     <Pressable accessibilityRole="button" accessibilityLabel="Détails de la production" accessibilityState={{expanded:missionExpanded}} onPress={()=>setMissionExpanded(v=>!v)} style={{flexDirection:'row',alignItems:'center',gap:9,minHeight:40}}>
+      {missionWorking?<ActivityIndicator size="small" color={C.violet}/>:<Feather name={mission.status==='done'?'check-circle':mission.status==='needs_review'?'alert-circle':'film'} size={21} color={mission.status==='done'?C.green:mission.status==='needs_review'?C.amber:C.violet}/>}
+      <View style={{flex:1}}><Text style={s.cardTitle}>{PRODUCTION_LABELS[mission.status]}</Text><Text style={s.cardSub}>{mission.status==='draft'?`Durée visée : ${Math.floor(mission.target_seconds/60)} min ${mission.target_seconds%60} s`:mission.requested_action?'Commande enregistrée · opération en cours':`${mission.step_count} opération(s) enregistrée(s)`}</Text></View><Feather name={missionExpanded?'chevron-up':'chevron-down'} size={18} color={C.muted}/>
+     </Pressable>
+     {mission.status==='draft'?<><Text style={s.messageText} selectable>{mission.plan}</Text><Button title="Valider et lancer la production" icon="play" loading={productionControlBusy} onPress={()=>void runMissionCommand('approve')}/><Button title="Refuser ce plan" secondary disabled={productionControlBusy} onPress={()=>void runMissionCommand('cancel')}/></>:null}
+     {missionExpanded&&mission.status!=='draft'?<View style={{gap:8}}>{production?.tasks.slice(0,12).map(t=><View key={t.step_no} style={{flexDirection:'row',alignItems:'center',gap:8}}><Feather name={t.status==='done'?'check-circle':t.status==='failed'||t.status==='uncertain'?'alert-circle':'clock'} color={t.status==='done'?C.green:t.status==='failed'||t.status==='uncertain'?C.amber:C.muted} size={16}/><Text style={s.cardSub}>Opération {t.step_no} · {t.status==='done'?'confirmée':t.status==='failed'?'échouée':t.status==='uncertain'?'à vérifier':'en cours'}</Text></View>)}
+     {missionWorking&&!mission.requested_action?<Button title="Mettre en pause après cette étape" secondary disabled={productionControlBusy} icon="pause" onPress={()=>void runMissionCommand('pause')}/>:null}
+     {mission.status==='paused'?<Button title="Reprendre la production" disabled={productionControlBusy} icon="play" onPress={()=>void runMissionCommand('resume')}/>:null}
+     {missionActive&&!mission.requested_action?<Button title="Annuler la mission" secondary disabled={productionControlBusy} onPress={()=>Alert.alert('Annuler cette production ?','Les modifications déjà enregistrées sont conservées.',[{text:'Conserver',style:'cancel'},{text:'Annuler la mission',style:'destructive',onPress:()=>void runMissionCommand('cancel')}])}/>:null}
+     </View>:null}
+     {mission.status==='needs_review'?<Text style={[s.cardSub,{color:C.amber}]}>Une étape n’a pas pu être confirmée. Le montage est conservé. La production ne répétera pas automatiquement une opération incertaine.</Text>:null}
+     {missionWorking?<Text style={s.cardMeta}>Les opérations sont enregistrées côté serveur lorsque le moteur est disponible.</Text>:null}
+    </View>:null}
     {loadingProject?<ActivityIndicator color={C.violet}/>:null}
     <View style={s.flex}>
     <ScrollView ref={chatScroll} style={s.flex} contentContainerStyle={s.chatContent}
@@ -519,7 +575,7 @@ function AppContent(){
       {messages.slice(0,Math.max(0,latestPromptIndex)).map(m=>renderChatMessage(m))}
       {latestPromptId?<View key={latestPromptId} style={{gap:18}} onLayout={e=>{const {y,height}=e.nativeEvent.layout;lastTurnRef.current={id:latestPromptId,y:y+12,height};setTurnHeight(height);anchorLatest();}}>
        {renderChatMessage(messages[latestPromptIndex])}
-       {(busy||activityTurns.some(t=>t.events.length)||activity?.conversationId===conversationId&&activity?.stale)?<View style={s.assistantRow}><BrandMark size={25}/><View style={s.assistantBody}><AgentJournal key={latestPromptId} turns={visibleActivityTurns} busy={busy} stale={Boolean(activity?.conversationId===conversationId&&activity?.stale)}/></View></View>:null}
+       {(busy||missionWorking||activityTurns.some(t=>t.events.length)||activity?.conversationId===conversationId&&activity?.stale)?<View style={s.assistantRow}><BrandMark size={25}/><View style={s.assistantBody}><AgentJournal key={latestPromptId} turns={visibleActivityTurns} busy={busy||missionWorking} stale={Boolean(activity?.conversationId===conversationId&&activity?.stale)}/></View></View>:null}
        {messages.slice(latestPromptIndex+1).map(m=>renderChatMessage(m))}
       </View>:messages.map(m=>renderChatMessage(m))}
       {latestPromptId?<View pointerEvents="none" style={{height:trailingSpace(viewport,turnHeight)}}/>:null}
@@ -544,7 +600,7 @@ function AppContent(){
       <View style={[s.projectIcon,{width:78,height:58}]}><Feather name={ready?'play-circle':'film'} size={26} color={C.violet}/></View><View style={{flex:1}}><Text numberOfLines={2} style={s.cardTitle}>{p.title}</Text><Text style={s.cardSub}>{rendering?`Production v${rendering.film_version} · ${rendering.progress||0}%`:failure?'Dernière production interrompue':ready?`Vidéo v${ready.film_version} disponible`:'Montage en préparation'}</Text>{rendering?<View style={s.progressTrack}><View style={[s.progressFill,{width:`${Math.max(0,Math.min(100,rendering.progress||0))}%`}]}/></View>:null}{ready&&rendering?<Text style={s.cardMeta}>Vidéo précédente v{ready.film_version} disponible</Text>:null}<Text style={s.cardMeta}>{new Date(p.updated_at).toLocaleDateString('fr-FR')}</Text></View></Pressable>
       <Pressable onPress={()=>setProjectMenu(p)} accessibilityRole="button" accessibilityLabel={`Options de ${p.title}`} style={s.inlineAction}><Feather name="more-vertical" size={20} color={C.muted}/></Pressable></Panel>;
     })}
-    {activeProject?<Panel style={s.renderPanel}><Text style={s.sectionLabel}>PRODUCTION</Text><Text style={s.cardTitle}>{activeProject.title}</Text><Button title="Lancer le rendu vidéo" onPress={()=>Alert.alert('Produire la vidéo ?', 'Le rendu utilisera la version actuelle du film. Vous pourrez continuer le montage pendant la production.',[{text:'Annuler',style:'cancel'},{text:'Lancer',onPress:()=>startRender(activeProject.id)}])} loading={renderBusy} disabled={busy||loadingProject||!!jobs.find(j=>j.project_id===activeProject.id&&['queued','running'].includes(j.status))} icon="play"/>{job&&job.project_id===activeProject.id?<View style={s.jobBox}><Text style={s.cardSub}>Rendu : {JOB_LABELS[job.status]||job.status} · {job.progress||0}%</Text><View style={s.progressTrack}><View style={[s.progressFill,{width:((Math.max(0,Math.min(100,job.progress||0)))+'%') as any}]}/></View>{job.error?<Pressable accessibilityRole="button" onPress={()=>Alert.alert('Détails de la production',job.error||'')}><Text style={[s.cardSub,{color:C.amber}]}>La production a échoué. Consulter les détails.</Text></Pressable>:null}{job.warnings?.map((w,i)=><Text key={i} style={[s.cardSub,{color:C.amber}]}>{w}</Text>)}{['queued','running'].includes(job.status)?<Button title="Annuler le rendu" secondary onPress={()=>Alert.alert('Annuler cette production ?','Le montage sera conservé.',[{text:'Continuer',style:'cancel'},{text:'Annuler le rendu',style:'destructive',onPress:async()=>{const {error}=await supabase.rpc('cancel_render',{p_job_id:job.id});if(error)Alert.alert('Annulation impossible','Réessayez.');else loadJobs(activeProjectId||undefined);}}])}/>:null}{job.output_path?<Button title="Ouvrir la vidéo MP4" onPress={()=>openRender(job.output_path)} secondary icon="download"/>:null}</View>:null}</Panel>:null}
+    {activeProject?<Panel style={s.renderPanel}><Text style={s.sectionLabel}>PRODUCTION</Text><Text style={s.cardTitle}>{activeProject.title}</Text><Button title="Lancer le rendu vidéo" onPress={()=>Alert.alert('Produire la vidéo ?', 'Le rendu utilisera la version actuelle du film. Vous pourrez continuer le montage pendant la production.',[{text:'Annuler',style:'cancel'},{text:'Lancer',onPress:()=>startRender(activeProject.id)}])} loading={renderBusy} disabled={busy||missionActive||loadingProject||!!jobs.find(j=>j.project_id===activeProject.id&&['queued','running'].includes(j.status))} icon="play"/>{job&&job.project_id===activeProject.id?<View style={s.jobBox}><Text style={s.cardSub}>Rendu : {JOB_LABELS[job.status]||job.status} · {job.progress||0}%</Text><View style={s.progressTrack}><View style={[s.progressFill,{width:((Math.max(0,Math.min(100,job.progress||0)))+'%') as any}]}/></View>{job.error?<Pressable accessibilityRole="button" onPress={()=>Alert.alert('Détails de la production',job.error||'')}><Text style={[s.cardSub,{color:C.amber}]}>La production a échoué. Consulter les détails.</Text></Pressable>:null}{job.warnings?.map((w,i)=><Text key={i} style={[s.cardSub,{color:C.amber}]}>{w}</Text>)}{['queued','running'].includes(job.status)?<Button title="Annuler le rendu" secondary onPress={()=>Alert.alert('Annuler cette production ?','Le montage sera conservé.',[{text:'Continuer',style:'cancel'},{text:'Annuler le rendu',style:'destructive',onPress:async()=>{const {error}=await supabase.rpc('cancel_render',{p_job_id:job.id});if(error)Alert.alert('Annulation impossible','Réessayez.');else loadJobs(activeProjectId||undefined);}}])}/>:null}{job.output_path?<Button title="Ouvrir la vidéo MP4" onPress={()=>openRender(job.output_path)} secondary icon="download"/>:null}</View>:null}</Panel>:null}
     <Text style={[s.sectionLabel,{marginTop:22}]}>VERSIONS ET PRODUCTIONS RÉCENTES</Text>{jobs.slice(0,8).map(j=><Panel key={j.id} style={s.jobRow}><View style={{flex:1}}><Text style={s.cardTitle}>{projects.find(p=>p.id===j.project_id)?.title||"Production"} · v{j.film_version}</Text><Text style={s.cardSub}>{JOB_LABELS[j.status]||j.status} · {j.progress||0}%</Text>{j.error?<Pressable onPress={()=>Alert.alert('Détails de la production',j.error||'')} accessibilityRole="button"><Text style={[s.cardSub,{color:C.amber}]}>Production interrompue · Détails</Text></Pressable>:null}{j.warnings?.map((w,i)=><Text key={i} style={[s.cardSub,{color:C.amber}]}>{w}</Text>)}</View>{j.output_path?<Pressable onPress={()=>openRender(j.output_path)}><Feather name="download" size={20} color={C.violet}/></Pressable>:null}</Panel>)}
    </ScrollView>:null}
    {tab==='media'?<ScrollView contentContainerStyle={s.pageContent}>
