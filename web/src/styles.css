@@ -242,3 +242,55 @@
  .project-item-art{width:64px;height:70px}
  .project-filter{padding:9px 13px}
 }
+
+/* Android app parity: filmstrip brand (Ionicons film) and one-column media lists. */
+.brand-icon{color:#130d24}
+.brand-icon svg{width:57%;height:57%;stroke:#130d24;flex:none}
+.brand--small .brand-icon svg{width:57%;height:57%}
+.android-media{width:100%;max-width:100%;min-height:0;padding:24px 28px 42px;background:transparent}
+.android-media-title{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:23px}
+.android-media-title h1{font-size:34px;margin:0}
+.media-filters{display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+.media-filters::-webkit-scrollbar{display:none}
+.media-filters .project-filter{flex-shrink:0}
+.media-section{max-width:850px;margin:24px auto 0}
+.media-section h2{font-family:'DM Sans',system-ui,sans-serif;letter-spacing:.14em;color:#a398b4;font-size:11px;font-weight:800;margin:0 0 19px}
+.media-list{display:flex;flex-direction:column;gap:11px}
+.media-row{
+ display:flex;align-items:center;justify-content:space-between;
+ gap:16px;min-height:80px;width:100%;background:#151020;
+ border:1px solid #433451;border-radius:18px;padding:15px 17px;
+ text-align:left;color:#f5efff
+}
+.media-row:hover{border-color:#a85cfc;background:#1c1529}
+.media-row-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
+.media-row-info strong{
+ font-size:15px;font-weight:800;line-height:1.35;
+ overflow-wrap:anywhere;
+}
+.media-row-info small{color:#a99db8;font-size:13px}
+.media-row-play{flex:none;color:#b15cff;border:2px solid #a958f9;
+ height:38px;width:38px;border-radius:50%;display:flex;
+ align-items:center;justify-content:center
+}
+.media-row-play svg{height:20px;width:20px}
+@media(max-width:620px){
+ .android-media{padding:27px 20px 24px}
+ .android-media-title{margin-bottom:21px}
+ .android-media-title h1{font-size:28px}
+ .media-section{margin-top:25px}
+ .media-section h2{margin-bottom:19px;font-size:11px}
+ .media-list{gap:10px}
+ .media-row{min-height:72px;padding:15px 15px;border-radius:18px}
+ .media-row-info{gap:5px}
+ .media-row-info strong{font-size:14px}
+ .media-row-info small{font-size:12px}
+ .media-row-play{width:35px;height:35px}
+ .media-row-play svg{height:18px;width:18px}
+ .media-filters{gap:8px}
+ .media-filters .project-filter{padding:10px 16px;font-size:13px}
+}
+@media(max-width:370px){
+ .android-media{padding-left:14px;padding-right:14px}
+ .media-filters .project-filter{padding:8px 13px}
+}
