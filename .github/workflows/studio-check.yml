@@ -13,12 +13,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: node --experimental-strip-types --test tests/agentActivity.test.mjs
+      - run: node --experimental-strip-types --test tests/*.test.mjs
       - run: npm ci --no-audit --no-fund
       - run: node .github/scripts/patch-expo-publication.js
       - run: npm run typecheck
-      - name: Resolve SDK 54 native module lock metadata
-        run: |
-          node -e 'const b=require("expo/bundledNativeModules.json"); console.log(JSON.stringify({clipboard:b["expo-clipboard"],video:b["expo-video"]}))'
-          npx expo install expo-clipboard expo-video --npm
-          node -e 'const l=require("./package-lock.json"); for(const n of ["expo-clipboard","expo-video"]) console.log(n,JSON.stringify(l.packages["node_modules/"+n]))'
