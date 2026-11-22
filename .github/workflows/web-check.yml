@@ -1,10 +1,10 @@
 name: Galingtosh Web checks
 on:
   pull_request:
-    paths: ['web/**', '.github/workflows/web-check.yml']
+    paths: ['web/**', 'src/lib/agentActivity.ts', '.github/workflows/web-check.yml']
   push:
     branches: [main]
-    paths: ['web/**']
+    paths: ['web/**', 'src/lib/agentActivity.ts']
 permissions:
   contents: read
 jobs:
@@ -20,4 +20,5 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-audit --no-fund
+      - run: diff -u ../src/lib/agentActivity.ts src/agentActivity.ts
       - run: npm run build
