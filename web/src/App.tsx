@@ -1,7 +1,9 @@
 import {useCallback,useEffect,useMemo,useRef,useState,type FormEvent,type ChangeEvent} from 'react';
 import {Activity,ArrowRight,Check,CheckCircle2,ChevronDown,ChevronRight,Clapperboard,Clock3,Download,Edit3,ExternalLink,Film,FolderOpen,Grid2X2,Image as ImageIcon,Layers3,LoaderCircle,LogOut,MessageCircle,MoreVertical,Music2,Paperclip,Pause,Play,Plus,Send,Settings2,ShieldCheck,Sparkles,Video,X,AlertCircle,Copy} from 'lucide-react';
 import type {LucideIcon} from 'lucide-react';
-import {db,listProjects,listRenders,listAssets,listConversations,listMessages,listMissionTasks,latestMission,latestFilm,createProject,sendChat,missionCommand,requestRender,signedOutput,signedAsset,uploadAsset,stageName,statusLabel,planTitle,type Project,type Message,type Asset,type Render,type Mission,type Task,type Film as FilmData,type Tab} from './api';
+// Import the same pure, security-filtered activity parser used by Android.
+import {buildActivityTurns,type ActivityTurn} from '../../src/lib/agentActivity';
+import {db,listProjects,listRenders,listAssets,listConversations,listMessages,listActivityRows,listMissionTasks,latestMission,latestFilm,createProject,sendChat,missionCommand,requestRender,signedOutput,signedAsset,uploadAsset,stageName,statusLabel,planTitle,type Project,type Message,type Asset,type Render,type Mission,type Task,type Film as FilmData,type Tab} from './api';
 type Attachment={id:string;name:string};
 type Dialog='create'|'plan'|'scenes'|'settings'|null;
 type SessionUser={id:string;email?:string};
@@ -32,6 +34,7 @@ export function App(){
  const[search,setSearch]=useState(''),[mediaSearch,setMediaSearch]=useState(''),[projectFilter,setProjectFilter]=useState<'all'|'active'|'ready'>('all'),[projectMenuId,setProjectMenuId]=useState<string|null>(null),[mediaFilter,setMediaFilter]=useState<'all'|'image'|'video'|'audio'>('all');
  const[previewUrl,setPreviewUrl]=useState<string|null>(null),[previewAsset,setPreviewAsset]=useState<Asset|null>(null),[assetDetail,setAssetDetail]=useState<Asset|null>(null);
  const[showActivity,setShowActivity]=useState(false);
+ const[activityTurns,setActivityTurns]=useState<ActivityTurn[]>([]),[chatJournalExpanded,setChatJournalExpanded]=useState(false);
  const[projectMenu,setProjectMenu]=useState(false),[renameValue,setRenameValue]=useState('');
  const chatEnd=useRef<HTMLDivElement>(null),uploadInput=useRef<HTMLInputElement>(null),scrollBox=useRef<HTMLDivElement>(null);
  const latestRef=useRef({projectId:null as string|null,conversationId:null as string|null}),activeCall=useRef(false);
@@ -42,6 +45,9 @@ export function App(){
  const missionRender=jobs.find(j=>j.id===mission?.render_job_id);
  const isActiveMission=!!mission&&['queued','running','waiting_render','paused','needs_review'].includes(mission.status);
  // Exact project filters from Android App.tsx:visibleProjects.
+ const latestPromptId=[...messages].reverse().find(m=>m.role==='user')?.id||null;
+ const lastActivityTurn=activityTurns.find(t=>t.id===latestPromptId);
+ const liveEvents=lastActivityTurn?.events||[];
  const visibleProjects=useMemo(()=>projects.filter(p=>{
   const related=jobs.filter(j=>j.project_id===p.id);
   return p.title.toLocaleLowerCase('fr').includes(search.trim().toLocaleLowerCase('fr'))&&
@@ -68,8 +74,11 @@ export function App(){
     const cs=await listConversations(id);
     if(latestRef.current.projectId!==id)return;
     const c=cs[0]||null;setConversationId(c?.id||null);latestRef.current.conversationId=c?.id||null;
-    const ms=c?await listMessages(c.id):[];
-    if(latestRef.current.projectId===id)setMessages([...ms].reverse().filter(x=>x.content?.trim()));
+    const [ms,rows]=c?await Promise.all([listMessages(c.id),listActivityRows(c.id)]):[[],[]];
+    if(latestRef.current.projectId===id){
+      setMessages([...ms].reverse().filter(x=>x.content?.trim()));
+      setActivityTurns(buildActivityTurns([...rows].reverse()));
+    }
    }
   }catch(e){if(latestRef.current.projectId===id)alertError(e)}
  },[]);
@@ -77,16 +86,32 @@ export function App(){
   if(busy||actionBusy)return;
   latestRef.current={projectId:null,conversationId:null};
   setProjectId(null);setConversationId(null);setMessages([]);setFilm(null);
-  setMission(null);setTasks([]);setComposer('');setAttachments([]);
+  setMission(null);setTasks([]);setActivityTurns([]);setChatJournalExpanded(false);setComposer('');setAttachments([]);
   setShowActivity(false);setDialog(null);setPreviewUrl(null);
   setTab('studio');setError('');setSidebarOpen(false);
  }
  async function openProject(id:string){
-  latestRef.current={projectId:id,conversationId:null};setProjectId(id);setConversationId(null);setMessages([]);setFilm(null);setMission(null);setTasks([]);setDialog(null);setSidebarOpen(false);setTab('studio');setLoading(true);setError('');
+  latestRef.current={projectId:id,conversationId:null};setProjectId(id);setConversationId(null);setMessages([]);setFilm(null);setMission(null);setTasks([]);setActivityTurns([]);setChatJournalExpanded(false);setDialog(null);setSidebarOpen(false);setTab('studio');setLoading(true);setError('');
   try{await refreshProject(id,true);}finally{setLoading(false)}
  }
  useEffect(()=>{if(!user){setProjects([]);setJobs([]);setAssets([]);setProjectId(null);setMessages([]);return;}void refreshGlobal();},[user?.id,refreshGlobal]);
  useEffect(()=>{if(!user)return;let inFlight=false;const poll=async()=>{if(inFlight||document.visibilityState!=='visible'||activeCall.current)return;inFlight=true;try{const j=await listRenders();setJobs(j);if(latestRef.current.projectId){const m=await latestMission(latestRef.current.projectId);if(m){setMission(m);setTasks(await listMissionTasks(m.id));}else{setMission(null);setTasks([]);}}}catch{/* preserve last confirmed state */}finally{inFlight=false;}};const timer=window.setInterval(()=>void poll(),5000);return()=>window.clearInterval(timer);},[user?.id]);
+ useEffect(()=>{
+  if(!user||!conversationId||tab!=='studio'||(!busy&&!isActiveMission))return;
+  let disposed=false,reading=false;
+  const id=conversationId;
+  const poll=async()=>{
+   if(disposed||reading||document.visibilityState!=='visible')return;
+   reading=true;
+   try{
+    const rows=await listActivityRows(id);
+    if(!disposed&&latestRef.current.conversationId===id)setActivityTurns(buildActivityTurns([...rows].reverse()));
+   }catch{/* retain last confirmed operations; never fabricate progress */}finally{reading=false;}
+  };
+  void poll();
+  const handle=window.setInterval(()=>void poll(),2500);
+  return()=>{disposed=true;window.clearInterval(handle)};
+ },[user?.id,conversationId,tab,busy,isActiveMission]);
  const scrollLatest=()=>window.requestAnimationFrame(()=>chatEnd.current?.scrollIntoView({behavior:'smooth',block:'end'}));
  async function sendMessage(e:FormEvent){
   e.preventDefault();const message=composer.trim();if((!message&&!attachments.length)||busy||actionBusy||!user)return;
@@ -101,8 +126,19 @@ export function App(){
    if(latestRef.current.projectId!==thisProject)return;
    setAttachments([]);setMessages(v=>[...v,{id:'reply-'+Date.now(),role:'assistant',content:result.reply,created_at:new Date().toISOString()}]);scrollLatest();
    if(result.project_id&&result.project_id!==thisProject){await refreshGlobal();void openProject(result.project_id);}
-   else if(thisProject){await refreshProject(thisProject);}
-  }catch(e){alertError(e);if(cid){try{const ms=await listMessages(cid);if(latestRef.current.projectId===thisProject)setMessages([...ms].reverse().filter(x=>x.content?.trim()));}catch{/* do not duplicate a potentially committed request */}}}
+   else {
+    if(cid){
+      try{
+       const [saved,rows]=await Promise.all([listMessages(cid),listActivityRows(cid)]);
+       if(latestRef.current.projectId===thisProject){
+        setMessages([...saved].reverse().filter(m=>m.content?.trim()));
+        setActivityTurns(buildActivityTurns([...rows].reverse()));
+       }
+      }catch{/* retain already displayed confirmed assistant response */}
+    }
+    if(thisProject)await refreshProject(thisProject);
+   }
+  }catch(e){alertError(e);if(cid){try{const ms=await listMessages(cid);if(latestRef.current.projectId===thisProject){setMessages([...ms].reverse().filter(x=>x.content?.trim()));const rows=await listActivityRows(cid);setActivityTurns(buildActivityTurns([...rows].reverse()));}}catch{/* do not duplicate a potentially committed request */}}}
   finally{setBusy(false);activeCall.current=false;}
  }
  async function runMission(command:'approve'|'pause'|'resume'|'cancel'){
@@ -162,7 +198,33 @@ export function App(){
      {showActivity&&mission&&<div className="activity-details"><div className="row-between"><strong>Journal de production</strong><span className="muted">{mission.step_count} opérations</span></div>{tasks.length?tasks.map(t=><div className="task" key={t.id}><span className={'task-icon '+t.status}>{t.status==='done'?<Check size={14}/>:<Clock3 size={14}/>}</span><span>{stageName(t)}</span><small>{t.status==='done'?'Confirmée':t.status==='started'?'En cours':t.status==='uncertain'?'À vérifier':'Échec'}</small></div>):<p className="muted">Aucune opération encore enregistrée.</p>}<div className="mission-buttons">{mission.status==='paused'?<button className="outline" onClick={()=>void runMission('resume')}><Play size={16}/> Reprendre</button>:['queued','running','waiting_render'].includes(mission.status)&&<button className="outline" onClick={()=>void runMission('pause')}><Pause size={16}/> Pause</button>}{isActiveMission&&<button className="outline danger" onClick={()=>{if(window.confirm('Annuler la mission ? Les modifications restent conservées.'))void runMission('cancel')}}>Annuler la mission</button>}</div></div>}
      <div className="conversation" ref={scrollBox} aria-label="Conversation avec Galingtosh">
       {loading?<div className="loading-line"><LoaderCircle size={21} className="spin"/> Chargement du projet…</div>:null}
-      {messages.length===0?null:messages.map(m=><article className={'bubble-row '+(m.role==='user'?'is-user':'is-agent')} key={m.id}>{m.role==='assistant'&&<span className="bot-avatar"><Clapperboard size={15}/></span>}<div className="message-bubble">{m.role==='assistant'&&<span className="bot-name">Galingtosh</span>}<div className="message-text">{m.content}</div>{m.role==='assistant'&&<button className="copy-message" title="Copier la réponse" onClick={()=>void navigator.clipboard.writeText(m.content)}><Copy size={14}/> Copier</button>}</div></article>)}
+      {messages.length===0?null:messages.map(m=><div key={m.id} className="chat-turn-part">
+       <article className={'bubble-row '+(m.role==='user'?'is-user':'is-agent')}>
+        {m.role==='assistant'&&<span className="bot-avatar"><FilmstripLogo/></span>}
+        <div className="message-bubble">
+         {m.role==='assistant'&&<span className="bot-name">Galingtosh</span>}
+         <div className="message-text">{m.content}</div>
+         {m.role==='assistant'&&<button className="copy-message" title="Copier la réponse" onClick={()=>void navigator.clipboard.writeText(m.content)}><Copy size={14}/> Copier</button>}
+        </div>
+       </article>
+       {m.role==='user'&&m.id===latestPromptId&&(busy||liveEvents.length>0)&&
+        <div className="chat-agent-activity">
+          <span className="bot-avatar"><FilmstripLogo/></span>
+          <div className="chat-agent-panel">
+           <button className="chat-agent-trigger" aria-expanded={chatJournalExpanded} onClick={()=>setChatJournalExpanded(v=>!v)}>
+            <Activity size={17}/><span><strong>Activité de Galingtosh</strong><small>{liveEvents.filter(x=>x.status==='done').length} confirmée(s){liveEvents.some(x=>x.status==='failed')?' · étapes en échec':''}{busy?' · en cours':''}</small></span>
+            <ChevronDown size={17}/>
+           </button>
+           {chatJournalExpanded&&<div className="chat-agent-steps">
+            {liveEvents.map(e=><div className="chat-agent-step" key={e.id}>
+              {e.status==='done'?<Check size={15}/>:e.status==='failed'?<AlertCircle size={15}/>:<Clock3 size={15}/>}
+              <span>{e.label}{e.detail?<small>{e.detail}</small>:null}</span>
+             </div>)}
+            {liveEvents.length===0&&<p>En attente des premières opérations confirmées.</p>}
+           </div>}
+          </div>
+        </div>}
+      </div>)}
       {busy&&<div className="assistant-thinking"><span className="bot-avatar"><Clapperboard size={15}/></span><LoaderCircle size={16} className="spin"/> Galingtosh travaille sur votre demande…</div>}
       <div ref={chatEnd}/>
      </div>
