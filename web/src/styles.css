@@ -346,3 +346,31 @@
 .native-recent-row strong{font-size:14px;overflow-wrap:anywhere}
 .native-recent-row p{color:#b2a7c8;font-size:12px;margin:5px 0 0}
 @media(max-width:620px){.native-project-production{padding:14px}.native-project-production .primary{font-size:12px}}
+
+/* Android AgentJournal: only persisted tool outcomes, attached to its chat turn. */
+.chat-turn-part{display:flex;flex-direction:column;gap:12px}
+.chat-agent-activity{display:flex;align-items:flex-start;gap:11px}
+.chat-agent-panel{flex:1;min-width:0;border:1px solid #332846;background:#12101e;border-radius:16px;overflow:hidden}
+.chat-agent-trigger{width:100%;display:flex;align-items:center;gap:9px;text-align:left;border:0;background:none;padding:12px 14px;color:#a75bff}
+.chat-agent-trigger>span{flex:1;display:flex;flex-direction:column;gap:4px;min-width:0}
+.chat-agent-trigger strong{color:#f7f3ff;font-size:13px}
+.chat-agent-trigger small{color:#b2a7c8;font-size:11px}
+.chat-agent-trigger[aria-expanded=true]>svg:last-child{transform:rotate(180deg)}
+.chat-agent-steps{padding:0 14px 14px;display:flex;flex-direction:column;gap:9px;max-height:260px;overflow-y:auto}
+.chat-agent-step{display:flex;align-items:flex-start;gap:9px;color:#b2a7c8;font-size:12px;line-height:1.4}
+.chat-agent-step svg{flex:none;color:#a75bff}
+.chat-agent-step span{display:flex;flex-direction:column;gap:4px}
+.chat-agent-step small{color:#9689a9}
+.chat-agent-steps p{margin:0;color:#b2a7c8;font-size:12px}
+.chat-agent-activity .bot-avatar svg{width:20px;height:20px;fill:#130d24}
+@media(max-width:620px){
+ .chat-agent-panel{border-radius:14px}
+ .chat-agent-trigger{padding:10px}
+ .chat-agent-trigger strong{font-size:12px}
+ .chat-agent-trigger small{font-size:10px}
+ /* Native app hides its toolbar and tabs while the keyboard is open. */
+ .shell:has(.composer textarea:focus) .topbar.android-header,
+ .shell:has(.composer textarea:focus) .mobile-nav.android-tabs,
+ .shell:has(.composer textarea:focus) .studio-head.android-project-header{display:none!important}
+ .shell:has(.composer textarea:focus) .proposal-banner>small{display:none}
+}
