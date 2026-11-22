@@ -29,7 +29,7 @@ export function App(){
  const[dialog,setDialog]=useState<Dialog>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(false),[actionBusy,setActionBusy]=useState(false);
  const[composer,setComposer]=useState(''),[attachments,setAttachments]=useState<Attachment[]>([]);
  const[createTitle,setCreateTitle]=useState(''),[createBrief,setCreateBrief]=useState('');
- const[search,setSearch]=useState(''),[mediaSearch,setMediaSearch]=useState(''),[projectFilter,setProjectFilter]=useState<'all'|'active'|'done'>('all'),[projectMenuId,setProjectMenuId]=useState<string|null>(null),[mediaFilter,setMediaFilter]=useState<'all'|'image'|'video'|'audio'>('all');
+ const[search,setSearch]=useState(''),[mediaSearch,setMediaSearch]=useState(''),[projectFilter,setProjectFilter]=useState<'all'|'active'|'ready'>('all'),[projectMenuId,setProjectMenuId]=useState<string|null>(null),[mediaFilter,setMediaFilter]=useState<'all'|'image'|'video'|'audio'>('all');
  const[previewUrl,setPreviewUrl]=useState<string|null>(null),[previewAsset,setPreviewAsset]=useState<Asset|null>(null),[assetDetail,setAssetDetail]=useState<Asset|null>(null);
  const[showActivity,setShowActivity]=useState(false);
  const[projectMenu,setProjectMenu]=useState(false),[renameValue,setRenameValue]=useState('');
@@ -41,12 +41,13 @@ export function App(){
  const readyRender=jobs.find(j=>j.project_id===projectId&&j.status==='done'&&j.output_path);
  const missionRender=jobs.find(j=>j.id===mission?.render_job_id);
  const isActiveMission=!!mission&&['queued','running','waiting_render','paused','needs_review'].includes(mission.status);
+ // Exact project filters from Android App.tsx:visibleProjects.
  const visibleProjects=useMemo(()=>projects.filter(p=>{
-  if(!p.title.toLowerCase().includes(search.trim().toLowerCase()))return false;
-  const recent=jobs.find(j=>j.project_id===p.id);
-  if(projectFilter==='active')return recent?.status!=='done';
-  if(projectFilter==='done')return recent?.status==='done';
-  return true;
+  const related=jobs.filter(j=>j.project_id===p.id);
+  return p.title.toLocaleLowerCase('fr').includes(search.trim().toLocaleLowerCase('fr'))&&
+   (projectFilter==='all'||(projectFilter==='active'?
+    related.some(j=>['queued','running'].includes(j.status)):
+    related.some(j=>j.status==='done'&&j.output_path)));
  }),[projects,jobs,projectFilter,search]);
  // Same filtering as Android App.tsx:visibleAssets; thumbnails come from loadAssets.
  const visibleAssets=useMemo(()=>assets.filter(a=>
@@ -110,6 +111,11 @@ export function App(){
  async function create(e:FormEvent){e.preventDefault();if(!createTitle.trim()||actionBusy)return;setActionBusy(true);try{const p=await createProject(createTitle.trim(),createBrief.trim());setDialog(null);setCreateTitle('');setCreateBrief('');await refreshGlobal();setProjects(v=>[p,...v.filter(x=>x.id!==p.id)]);await openProject(p.id);}catch(e){alertError(e)}finally{setActionBusy(false)}}
  async function upload(e:ChangeEvent<HTMLInputElement>){const file=e.target.files?.[0];e.target.value='';if(!file||!user||!projectId||busy)return;setActionBusy(true);try{const id=await uploadAsset(file,projectId,user.id);setAttachments(v=>[...v,{id,name:file.name}]);setAssets(await listAssets());setTab('studio');}catch(e){alertError(e)}finally{setActionBusy(false)}}
  async function renderSpecificProject(id:string){if(actionBusy)return;setActionBusy(true);try{await requestRender(id);setJobs(await listRenders());setProjectMenuId(null);}catch(e){alertError(e)}finally{setActionBusy(false)}}
+ async function cancelSpecificRender(jobId:string){
+  if(actionBusy)return;setActionBusy(true);
+  try{const {error}=await db.rpc('cancel_render',{p_job_id:jobId});if(error)throw error;setJobs(await listRenders());}
+  catch(e){alertError(e)}finally{setActionBusy(false)}
+ }
  async function playRender(path:string){try{setPreviewAsset(null);setPreviewUrl(await signedOutput(path));}catch(e){alertError(e)}}
  async function playAsset(a:Asset){
   try{const url=await signedAsset(a);if(!url)throw Error('Aucun aperçu disponible pour ce média.');setPreviewAsset(a);setPreviewUrl(url);}catch(e){alertError(e)}
@@ -171,18 +177,24 @@ export function App(){
     </div>
     <div className="project-search"><input aria-label="Rechercher un projet" placeholder="Rechercher un projet" value={search} onChange={e=>setSearch(e.target.value)}/></div>
     <div className="project-filters" role="group" aria-label="Filtrer les projets">
-     {([{id:'all',label:'Tous'},{id:'active',label:'En cours'},{id:'done',label:'Terminés'}] as const).map(f=><button type="button" key={f.id} aria-pressed={projectFilter===f.id} className={'project-filter '+(projectFilter===f.id?'is-active':'')} onClick={()=>setProjectFilter(f.id)}>{f.label}</button>)}
+     {([{id:'all',label:'Tous'},{id:'active',label:'En cours'},{id:'ready',label:'Terminés'}] as const).map(f=><button type="button" key={f.id} aria-pressed={projectFilter===f.id} className={'project-filter '+(projectFilter===f.id?'is-active':'')} onClick={()=>setProjectFilter(f.id)}>{f.label}</button>)}
     </div>
     {visibleProjects.length===0?<Empty icon={FolderOpen} title="Aucun projet" desc="Aucun projet ne correspond à cette sélection."/>:
     <div className="android-project-list">{visibleProjects.map(p=>{
-      const r=jobs.find(j=>j.project_id===p.id),ready=jobs.find(j=>j.project_id===p.id&&j.status==='done'&&j.output_path);
-      const description=r?.status==='failed'?'Dernière production interrompue':r?.status==='running'||r?.status==='queued'?'Production en cours':r?.status==='done'?'Production terminée':'Montage en préparation';
+      const related=jobs.filter(j=>j.project_id===p.id);
+      const r=related[0],rendering=related.find(j=>j.status==='queued'||j.status==='running');
+      const ready=related.find(j=>j.status==='done'&&j.output_path);
+      const failure=r?.status==='failed';
+      const description=rendering?`Production v${rendering.film_version} · ${rendering.progress||0}%`:
+        failure?'Dernière production interrompue':ready?`Vidéo v${ready.film_version} disponible`:'Montage en préparation';
       return <article className="android-project-item" key={p.id}>
         <button className="project-item-main" onClick={()=>void openProject(p.id)} title={'Ouvrir '+p.title}>
           <span className="project-item-art">{ready?<Play size={30}/>:<Film size={33}/>}</span>
           <span className="project-item-copy">
             <strong>{p.title}</strong>
             <span>{description}</span>
+            {rendering&&<span className="progress-track project-item-progress"><span style={{width:Math.max(0,Math.min(100,rendering.progress||0))+'%'}}/></span>}
+            {ready&&rendering&&<span className="project-previous-ready">Vidéo précédente v{ready.film_version} disponible</span>}
             <time dateTime={p.updated_at}>{new Date(p.updated_at).toLocaleDateString('fr-FR')}</time>
           </span>
         </button>
@@ -191,11 +203,35 @@ export function App(){
            <button onClick={()=>{setProjectMenuId(null);void openProject(p.id)}}><MessageCircle size={16}/> Ouvrir le Studio</button>
            <button onClick={()=>{setProjectMenuId(p.id);setRenameValue(p.title);setProjectMenu(true)}}><Edit3 size={16}/> Renommer</button>
            {ready?.output_path&&<button onClick={()=>{setProjectMenuId(null);void playRender(ready.output_path!)}}><Play size={16}/> Voir la dernière vidéo</button>}
-           {!['queued','running'].includes(r?.status||'')&&<button onClick={()=>{if(window.confirm('Lancer un rendu de la version actuelle du projet ?'))void renderSpecificProject(p.id)}}><Clapperboard size={16}/> Lancer le rendu</button>}
            <button onClick={()=>setProjectMenuId(null)}><X size={16}/> Fermer</button>
          </div>}
       </article>
     })}</div>}
+    {activeProject&&<section className="native-project-production">
+     <h2>PRODUCTION</h2><strong>{activeProject.title}</strong>
+     <button className="primary" disabled={busy||actionBusy||isActiveMission||loading||!!activeRender||!film?.data?.scenes?.length}
+       onClick={()=>{if(window.confirm('Produire la vidéo avec la version actuelle du film ?'))void renderSpecificProject(activeProject.id);}}>
+       <Play size={16}/> Lancer le rendu vidéo
+     </button>
+     {latestRender&&<div className="native-job-info">
+      <p>Rendu : {latestRender.status==='done'?'Terminé':latestRender.status==='running'?'En production':latestRender.status==='failed'?'Échec':latestRender.status==='queued'?'En attente':latestRender.status} · {latestRender.progress||0}%</p>
+      {['queued','running'].includes(latestRender.status)&&<div className="progress-track"><span style={{width:Math.max(0,Math.min(100,latestRender.progress||0))+'%'}}/></div>}
+      {latestRender.error&&<button className="text-link" onClick={()=>window.alert(latestRender.error||'')}>Production interrompue · Détails</button>}
+      {latestRender.warnings?.map((warning,i)=><p key={i}>{warning}</p>)}
+      {['queued','running'].includes(latestRender.status)&&<button className="outline danger" onClick={()=>{if(window.confirm('Annuler ce rendu ? Le montage restera conservé.'))void cancelSpecificRender(latestRender.id);}}>Annuler le rendu</button>}
+      {latestRender.output_path&&<button className="outline" onClick={()=>void playRender(latestRender.output_path!)}>Ouvrir la vidéo MP4</button>}
+     </div>}
+    </section>}
+    <section className="native-recent-productions"><h2>VERSIONS ET PRODUCTIONS RÉCENTES</h2>
+    {jobs.slice(0,8).map(j=><div className="native-recent-row" key={j.id}>
+      <div><strong>{projects.find(p=>p.id===j.project_id)?.title||'Production'} · v{j.film_version}</strong>
+      <p>{j.status==='done'?'Terminé':j.status==='failed'?'Échec':j.status==='running'?'En production':j.status==='queued'?'En attente':j.status} · {j.progress||0}%</p>
+      {j.error&&<button className="text-link" onClick={()=>window.alert(j.error||'')}>Production interrompue · Détails</button>}
+      {j.warnings?.map((warning,i)=><p key={i}>{warning}</p>)}
+      </div>
+      {j.output_path&&<button className="project-item-menu" aria-label="Ouvrir cette vidéo" onClick={()=>void playRender(j.output_path!)}><Download size={20}/></button>}
+    </div>)}
+    </section>
    </section>}
    {tab==='media'&&<section className="page android-media">
     <div className="android-media-title"><h1>Médias</h1><button className="project-add" aria-label="Importer un média" title="Importer un média" onClick={()=>{
