@@ -27,6 +27,10 @@ const LABELS:Record<string,string>={
  inspect_video_clips:'Analyse des passages vidéo',analyze_media:'Analyse d’un média',
  request_render:'Demande de rendu',undo_last_operation:'Annulation d’une opération'
 };
+/** Human-facing description of a persisted backend task. Never leak raw tool ids. */
+export function activityLabel(name:string):string{
+ return LABELS[name]||'Étape de production';
+}
 function record(value:unknown):Record<string,unknown>{
  return value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};
 }
