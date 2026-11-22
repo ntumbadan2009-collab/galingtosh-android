@@ -294,3 +294,37 @@
  .android-media{padding-left:14px;padding-right:14px}
  .media-filters .project-filter{padding:8px 13px}
 }
+
+/* Source-of-truth port from Android App.tsx:
+   BrandMark + media lines 639-648. Two data regions have intentionally
+   different layouts: finished renders are ROWS; media_assets are a GRID. */
+.brand-icon{background:linear-gradient(135deg,#FFC66D 0%,#F16BCB 48%,#793BFF 100%);border-radius:35%}
+.brand-icon svg,.brand--small .brand-icon svg{stroke:none;width:58%;height:58%;fill:#130D24}
+.brand-copy strong{font-family:Roboto,system-ui,-apple-system,sans-serif;font-weight:800;letter-spacing:-.04em}
+.android-media,.android-projects,.android-header{font-family:Roboto,system-ui,-apple-system,sans-serif}
+.android-media h1,.android-projects h1{font-family:Roboto,system-ui,-apple-system,sans-serif;font-weight:800}
+.native-asset-grid{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:start}
+.native-asset-card{min-width:0;display:flex;flex-direction:column;overflow:hidden;background:#12101e;border:0;border-radius:14px;text-align:left;padding:0;box-shadow:none;align-self:start}
+.native-asset-card:hover,.native-asset-card:focus-visible{box-shadow:0 0 0 1px #ab61ee;background:#1a1429}
+.native-asset-thumb{width:100%;height:auto;display:block;aspect-ratio:4/3;object-fit:cover;background:#211b35}
+.native-asset-fallback{display:flex;align-items:center;justify-content:center;color:#a75bff}
+.native-asset-caption{min-width:0;padding:10px;display:flex;flex-direction:column;gap:5px;width:100%}
+.native-asset-caption strong{
+ color:#f7f3ff;font-size:14px;line-height:1.4;font-weight:700;
+ display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+ overflow:hidden;word-break:break-word;max-height:2.8em
+}
+.native-asset-caption small{display:block;font-size:12px;line-height:1.3;color:#b2a7c8;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.media-resources{margin-top:20px}
+.native-asset-detail-preview{width:100%;height:auto;aspect-ratio:16/9;object-fit:contain;border-radius:12px;background:#0c0916}
+.media-detail-body h3{font-family:Roboto,system-ui,sans-serif;font-size:18px;margin:0}
+.media-meta{color:#b2a7c8;font-size:13px;margin:0}
+.media-restriction{font-size:13px;color:#ffc66d;margin:0}
+.media-detail-body .outline,.media-detail-body .primary{width:100%}
+@media(max-width:620px){
+ .native-asset-grid{gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}
+ .native-asset-caption{padding:10px;gap:4px}
+ .native-asset-caption strong{font-size:14px;line-height:1.35;max-height:2.7em}
+ .native-asset-caption small{font-size:12px}
+ .media-resources{margin-top:20px}
+}
