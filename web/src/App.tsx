@@ -43,7 +43,7 @@ export function App(){
  const visibleProjects=useMemo(()=>projects.filter(p=>p.title.toLowerCase().includes(search.trim().toLowerCase())),[projects,search]);
  const visibleAssets=useMemo(()=>assets.filter(a=>(!projectId||a.project_id===projectId)&&(mediaFilter==='all'||a.kind===mediaFilter)),[assets,mediaFilter,projectId]);
  const alertError=(e:unknown)=>setError(e instanceof Error?e.message:'Opération impossible. Vérifie ta connexion.');
- useEffect(()=>{let mounted=true;void db.auth.getSession().then(({data})=>{if(mounted){setUser(data.session?.user?{id:data.session.user.id,email:data.session.user.email}:null);setAuthReady(true);}});const{sub}=db.auth.onAuthStateChange((_event,session)=>{if(mounted){setUser(session?.user?{id:session.user.id,email:session.user.email}:null);setAuthReady(true);}}).data;return()=>{mounted=false;sub.unsubscribe();}},[]);
+ useEffect(()=>{let mounted=true;void db.auth.getSession().then(({data})=>{if(mounted){setUser(data.session?.user?{id:data.session.user.id,email:data.session.user.email}:null);setAuthReady(true);}});const{subscription}=db.auth.onAuthStateChange((_event,session)=>{if(mounted){setUser(session?.user?{id:session.user.id,email:session.user.email}:null);setAuthReady(true);}}).data;return()=>{mounted=false;subscription.unsubscribe();}},[]);
  const refreshGlobal=useCallback(async()=>{if(!user)return;try{const [p,j,a]=await Promise.all([listProjects(),listRenders(),listAssets()]);setProjects(p);setJobs(j);setAssets(a);}catch(e){alertError(e);}},[user?.id]);
  const refreshProject=useCallback(async(id:string,includeHistory=false)=>{
   try{
