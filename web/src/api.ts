@@ -28,6 +28,8 @@ export async function listAssets():Promise<Asset[]>{
 }
 export const listConversations=(projectId:string)=>checked(db.from('conversations').select('id,project_id,title,created_at').eq('project_id',projectId).order('created_at',{ascending:false}).limit(30));
 export const listMessages=(id:string)=>checked(db.from('messages').select('id,role,content,created_at,metadata').eq('conversation_id',id).in('role',['user','assistant']).order('created_at',{ascending:false}).limit(140));
+// The journal is built from persisted tool metadata (same as Android), not fake activity.
+export const listActivityRows=(id:string)=>checked(db.from('messages').select('id,role,created_at,metadata').eq('conversation_id',id).in('role',['user','assistant','tool']).order('created_at',{ascending:false}).limit(500));
 export const listMissionTasks=(missionId:string)=>checked(db.from('production_tasks').select('id,mission_id,step_no,kind,status,started_at').eq('mission_id',missionId).order('step_no',{ascending:false}).limit(40));
 export async function latestMission(projectId:string):Promise<Mission|null>{return (await checked(db.from('production_missions').select('id,project_id,conversation_id,status,plan,target_seconds,step_count,render_job_id,requested_action,error_code').eq('project_id',projectId).order('created_at',{ascending:false}).limit(1).maybeSingle())) as Mission|null;}
 export async function latestFilm(projectId:string){return checked(db.from('films').select('version,data').eq('project_id',projectId).order('version',{ascending:false}).limit(1).maybeSingle());}
