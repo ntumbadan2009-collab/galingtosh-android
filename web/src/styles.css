@@ -378,3 +378,76 @@
 /* Direct native measurements: s.projectIcon width 78, height 58. */
 .android-project-item .project-item-art{width:78px;height:58px}
 @media(max-width:620px){.android-project-item .project-item-art{width:78px;height:58px}}
+
+/* Measurements transcribed from Android App.tsx StyleSheet, not approximated
+   from a screenshot. React Native dp ≈ CSS px at deviceScaleFactor 1. */
+:root{
+ --bg:#080611;--surface:#12101E;--surface2:#191629;
+ --surface3:#211B35;--border:#332846;--muted:#B2A7C8;
+ --dim:#A096AD;--violet:#A75BFF;--purple:#783BFF;
+ --pink:#F17BCB;--amber:#FFC66D;--green:#55D6A1;
+}
+.shell,.page{background:#080611}
+.topbar.android-header.native-page-head{height:70px;min-height:70px;padding:0 21px}
+.topbar.android-header.native-studio-head{height:56px;min-height:56px;padding:0 18px}
+.android-header .brand-icon{height:43px;width:43px;border-radius:15px}
+.android-header .brand-icon svg{height:58%;width:58%}
+.android-header .brand-with-tagline .brand{gap:11px}
+.android-header .brand-copy strong{font-family:Roboto,system-ui,sans-serif;font-size:21px;letter-spacing:-.4px;font-weight:800}
+.android-tagline{font-size:8px;font-weight:800;letter-spacing:1.25px;color:#A096AD;padding-left:54px;margin-top:3px}
+.android-header.native-studio-head .brand-icon{height:35px;width:35px;border-radius:12px}
+.android-header.native-studio-head .brand-copy strong{font-size:19px}
+.android-header.native-page-head .android-action{height:44px;width:44px;border-radius:22px;background:#191629;border:1px solid #332846}
+.android-header.native-studio-head .android-action{height:48px;width:48px;border-radius:20px;background:#191629;border:1px solid #332846}
+.android-header.native-studio-head .top-actions{gap:8px}
+.android-projects,.android-media{padding:21px;padding-bottom:42px}
+.android-project-title h1,.android-media-title h1{font-family:Roboto,system-ui,sans-serif;font-size:29px;font-weight:800}
+.project-search{min-height:49px;height:49px;border-radius:14px;border:1px solid #332846;background:#191629;padding:0 14px}
+.project-search input{font-size:14px}
+.project-filters{gap:8px}
+.project-filter{height:44px;min-height:44px;border-radius:22px;background:#191629;padding:0 15px;font-weight:800;font-size:14px}
+.project-filter.is-active{background:#472C77;border:1px solid #A75BFF}
+.android-project-item,.media-row,.native-project-production,.native-recent-row{background:#12101E;border-color:#332846;border-radius:18px;padding:15px}
+.project-item-art{background:#211B35;border-radius:13px}
+.project-item-copy strong,.media-row-info strong{font-size:14px;font-weight:800}
+.project-item-copy>span,.media-row-info small{font-size:13px;line-height:17px;color:#B2A7C8}
+.project-item-copy time{font-size:11px;color:#A096AD}
+.media-section h2,.native-project-production h2,.native-recent-productions h2{font-size:9px;color:#A096AD;letter-spacing:1.45px;font-weight:900}
+.android-tabs button{font-size:11px;gap:4px}
+.mobile-nav.android-tabs{height:64px;min-height:64px;background:#0E0C18;border-top:1px solid #332846}
+.android-tabs button svg{width:20px;height:20px}
+.android-tabs button.active::before{height:2px;width:25px;left:calc(50% - 12.5px);background:#A75BFF}
+.composer{min-height:62px;max-height:118px;border-radius:30px;border:1.5px solid #55456E;background:#151220;gap:8px;padding:7px 12px}
+.composer textarea{min-height:42px;max-height:92px;font-size:14px}
+.composer .attach{width:48px;height:48px}
+.send-btn{height:48px;width:48px;border-radius:24px;background:linear-gradient(135deg,#8C43FF,#5D22E8)}
+.compose-wrap{padding:0 14px 8px}
+@media(max-width:620px){
+ .topbar.android-header.native-page-head{height:70px;min-height:70px;padding:0 21px}
+ .topbar.android-header.native-studio-head{height:56px;min-height:56px;padding:0 18px}
+ .android-header .brand-with-tagline .brand{gap:11px}
+ .android-header .brand-icon{width:43px;height:43px;border-radius:15px}
+ .android-header .brand-copy strong{font-size:21px;max-width:calc(100vw - 153px)}
+ .android-header.native-studio-head .brand-icon{width:35px;height:35px;border-radius:12px}
+ .android-header.native-studio-head .brand-copy strong{font-size:19px}
+ .android-header.native-page-head .android-action{width:44px;height:44px}
+ .android-header.native-studio-head .android-action{width:48px;height:48px}
+ .android-tagline{font-size:8px;letter-spacing:1.25px;padding-left:54px}
+ .android-projects,.android-media{padding:21px;padding-bottom:42px}
+ .android-project-title h1,.android-media-title h1{font-size:29px}
+ .project-search{height:49px;min-height:49px;border-radius:14px}
+ .project-filter{height:44px;min-height:44px;padding:0 15px;font-size:14px}
+ .mobile-nav.android-tabs{height:64px;min-height:64px}
+ .android-tabs button svg{width:20px;height:20px}
+ .android-project-item,.media-row{padding:15px}
+ .compose-wrap{padding:0 14px 8px}
+ .composer{min-height:62px;border-radius:30px;padding:7px 12px}
+ .composer .attach{width:48px;height:48px}
+ .send-btn{height:48px;width:48px}
+}
+@media(max-width:375px){
+ .android-header .brand-copy strong{font-size:20px;max-width:calc(100vw - 155px)}
+ .android-tagline{font-size:7px;letter-spacing:1px}
+ .project-filter{padding:0 12px;font-size:13px}
+ .compose-wrap{padding-left:10px;padding-right:10px}
+}
