@@ -5,6 +5,17 @@ export type ProductionMission={id:string;project_id:string;conversation_id:strin
 export type MissionTask={step_no:number;kind:string;status:'started'|'done'|'failed'|'uncertain'};
 export const activeProduction=(m:ProductionMission|null|undefined)=>!!m&&['queued','running','waiting_render','paused','needs_review'].includes(m.status);
 export const PRODUCTION_LABELS:Record<ProductionStatus,string>={draft:'Direction créative proposée',queued:'Production en attente',running:'Production autonome en cours',waiting_render:'Montage transmis au moteur vidéo',paused:'Production en pause',needs_review:'Vérification nécessaire',done:'Production terminée',failed:'Production interrompue',canceled:'Production annulée'};
+/** Present only a compact headline; the full approved plan is still kept intact. */
+export function creativePlanHeadline(plan:string):string{
+ const lines=plan.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+ const title=lines.find(x=>/^(?:titre(?:\s+provisoire)?|title)\s*:/i.test(x));
+ const source=(title||lines[0]||'Proposition créative').replace(/^(?:titre(?:\s+provisoire)?|title)\s*:\s*/i,'');
+ return source.length>120?source.slice(0,117)+'…':source;
+}
+export function creativePlanFormat(plan:string):string|null{
+ const line=plan.split(/\r?\n/).map(x=>x.trim()).find(x=>/^format\s*:/i.test(x));
+ return line?line.replace(/^format\s*:\s*/i,'').slice(0,100):null;
+}
 export async function readProduction(projectId:string):Promise<{mission:ProductionMission|null;tasks:MissionTask[]}>{
  const {data,error}=await supabase.from('production_missions').select('id,project_id,conversation_id,plan,target_seconds,status,step_count,requested_action,error_code,render_job_id,updated_at').eq('project_id',projectId).order('created_at',{ascending:false}).limit(1).maybeSingle();
  if(error)throw error;
@@ -18,4 +29,5 @@ export async function controlProduction(missionId:string,command:'approve'|'paus
  const {data,error}=await supabase.functions.invoke('chat-agent',{body:{action:command==='approve'?'approve_production':'control_production',mission_id:missionId,command}});
  if(error)throw await functionError(error,'La commande n’a pas pu être confirmée.');
  if(!data?.ok)throw Error('La commande n’a pas été confirmée.');
+ return typeof data.reply==='string'?data.reply:null;
 }
