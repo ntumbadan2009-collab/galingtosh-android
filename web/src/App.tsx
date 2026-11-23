@@ -84,6 +84,16 @@ function Auth({onAuth}:{onAuth:()=>void}){
    <div className="auth-benefits"><span><CheckCircle2 size={18}/> Studio intelligent</span><span><CheckCircle2 size={18}/> Projets synchronisés</span><span><CheckCircle2 size={18}/> Production audiovisuelle</span></div>
   </section>
   <section className="auth-box" aria-labelledby="auth-heading">
+   <div className="auth-cinema-stage" aria-hidden="true">
+    <div className="auth-stage-glow"/>
+    <div className="auth-stage-caption"><span className="auth-stage-live-dot"/> GALINGTOSH · STUDIO CRÉATIF <span className="auth-stage-counter">00:24</span></div>
+    <div className="auth-stage-scenes">
+     <div className="auth-stage-panel"><span className="auth-panel-number">01 · IDÉE</span><Sparkles size={29}/><span className="auth-panel-wave"/></div>
+     <div className="auth-stage-panel"><span className="auth-panel-number">02 · STORYBOARD</span><Layers3 size={29}/><span className="auth-panel-wave"/></div>
+     <div className="auth-stage-panel"><span className="auth-panel-number">03 · STUDIO</span><Clapperboard size={29}/><span className="auth-panel-wave"/></div>
+    </div>
+    <div className="auth-stage-timeline"><span className="auth-stage-progress"/></div>
+   </div>
    <div className="auth-box-icon"><Film size={26}/></div>
    <div className="auth-eyebrow">{signup?'BIENVENUE DANS GALINGTOSH':'BON RETOUR'}</div>
    <h2 id="auth-heading">{signup?'Créer mon compte':'Se connecter'}</h2>
