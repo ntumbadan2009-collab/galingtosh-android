@@ -37,6 +37,45 @@ export function App(){
  const[activityTurns,setActivityTurns]=useState<ActivityTurn[]>([]),[chatJournalExpanded,setChatJournalExpanded]=useState(false);
  const[projectMenu,setProjectMenu]=useState(false),[renameValue,setRenameValue]=useState('');
  const chatEnd=useRef<HTMLDivElement>(null),uploadInput=useRef<HTMLInputElement>(null),scrollBox=useRef<HTMLDivElement>(null);
+ const [keyboardOpen,setKeyboardOpen]=useState(false);
+ // Android Chrome and embedded Google browsers can keep the layout viewport
+ // unchanged when the software keyboard opens. Follow the *visible* viewport.
+ useEffect(()=>{
+  if(typeof window==='undefined')return;
+  const root=document.documentElement;
+  let baseline=Math.max(window.innerHeight,window.visualViewport?.height||0);
+  let frame=0;
+  const update=()=>{
+   const viewport=window.visualViewport;
+   const active=document.activeElement;
+   const editing=active instanceof HTMLElement &&
+    (active.matches('textarea,input:not([type="checkbox"]):not([type="radio"])')||active.isContentEditable);
+   const height=viewport?.height||window.innerHeight;
+   if(!editing)baseline=Math.max(window.innerHeight,height);
+   const open=window.innerWidth<=900 && editing && baseline-height>120;
+   root.style.setProperty('--galingtosh-visible-height',Math.max(280,Math.round(height))+'px');
+   root.style.setProperty('--galingtosh-viewport-top',Math.max(0,Math.round(viewport?.offsetTop||0))+'px');
+   setKeyboardOpen(previous=>previous===open?previous:open);
+  };
+  const schedule=()=>{window.cancelAnimationFrame(frame);frame=window.requestAnimationFrame(update)};
+  schedule();
+  window.visualViewport?.addEventListener('resize',schedule);
+  window.visualViewport?.addEventListener('scroll',schedule);
+  window.addEventListener('resize',schedule);
+  document.addEventListener('focusin',schedule);
+  document.addEventListener('focusout',schedule);
+  return()=>{
+   window.cancelAnimationFrame(frame);
+   window.visualViewport?.removeEventListener('resize',schedule);
+   window.visualViewport?.removeEventListener('scroll',schedule);
+   window.removeEventListener('resize',schedule);
+   document.removeEventListener('focusin',schedule);
+   document.removeEventListener('focusout',schedule);
+   root.style.removeProperty('--galingtosh-visible-height');
+   root.style.removeProperty('--galingtosh-viewport-top');
+  };
+ },[]);
+
  const latestRef=useRef({projectId:null as string|null,conversationId:null as string|null}),activeCall=useRef(false);
  const activeProject=projects.find(p=>p.id===projectId)||null;
  const activeRender=jobs.find(j=>j.project_id===projectId&&['queued','running'].includes(j.status));
@@ -166,7 +205,7 @@ export function App(){
  async function logout(){await db.auth.signOut();setDialog(null);setUser(null);}
  if(!authReady)return <div className="boot"><Brand/><LoaderCircle className="spin"/></div>;
  if(!user)return <Auth onAuth={()=>void refreshGlobal()}/>;
- return <div className="shell">
+ return <div className={"shell"+(keyboardOpen?" keyboard-open":"")}>
   {sidebarOpen&&<div className="mobile-scrim" onClick={()=>setSidebarOpen(false)}/>}
   <aside className={'sidebar '+(sidebarOpen?'sidebar-open':'')}>
    <div className="sidebar-brand"><Brand/><IconButton icon={X} label="Fermer le menu" onClick={()=>setSidebarOpen(false)}/></div>
