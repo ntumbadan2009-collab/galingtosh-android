@@ -13,13 +13,83 @@ function IconButton({icon:Icon,label,onClick,disabled}:{icon:LucideIcon;label:st
 function Empty({icon:Icon,title,desc}:{icon:LucideIcon;title:string;desc:string}){return <div className="empty"><span className="empty-icon"><Icon size={29}/></span><h3>{title}</h3><p>{desc}</p></div>}
 function Alert({text,onClose}:{text:string;onClose:()=>void}){return <div className="notice" role="alert"><AlertCircle size={17}/><span>{text}</span><button aria-label="Fermer le message" onClick={onClose}><X size={17}/></button></div>}
 function Auth({onAuth}:{onAuth:()=>void}){
- const[email,setEmail]=useState(''),[password,setPassword]=useState(''),[signup,setSignup]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[success,setSuccess]=useState('');
- async function submit(e:FormEvent){e.preventDefault();setError('');setSuccess('');setBusy(true);try{
-  if(!email.includes('@')||password.length<6)throw Error('Saisis une adresse e-mail et un mot de passe valide.');
-  if(signup){const{data,error}=await db.auth.signUp({email,password});if(error)throw error;if(data.session)onAuth();else setSuccess('Vérifie ta boîte e-mail pour confirmer le compte.');}
-  else{const{error}=await db.auth.signInWithPassword({email,password});if(error)throw error;onAuth();}
- }catch(e){setError(e instanceof Error?e.message:'Authentification impossible.');}finally{setBusy(false)}}
- return <div className="auth-page"><div className="auth-aurora"/><div className="auth-layout"><section className="auth-story"><Brand/><div className="hero-pill"><Sparkles size={15}/> L'intelligence au service de votre imagination</div><h1>Une idée.<br/><span>Un film.</span><br/>Votre studio.</h1><p>Concevez vos histoires, orchestrez les scènes, organisez les médias et retrouvez vos productions dans un espace créatif unique.</p><div className="auth-benefits"><span><CheckCircle2 size={18}/> Studio intelligent</span><span><CheckCircle2 size={18}/> Projets synchronisés</span><span><CheckCircle2 size={18}/> Production audiovisuelle</span></div></section><section className="auth-box"><div className="auth-box-icon"><Film size={26}/></div><h2>{signup?'Créer un compte':'Retrouver votre Studio'}</h2><p>Connectez-vous avec le même compte que sur votre application Android.</p><form onSubmit={submit}><label>Adresse e-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="votre@email.com" required autoComplete="email"/></label><label>Mot de passe<input type="password" minLength={6} value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" required autoComplete={signup?'new-password':'current-password'}/></label>{error&&<div className="auth-error" role="alert">{error}</div>}{success&&<div className="auth-success">{success}</div>}<button className="primary full" disabled={busy} type="submit">{busy?<LoaderCircle className="spin" size={18}/>:<ArrowRight size={18}/>} {signup?"Créer mon compte":"Se connecter"}</button></form><button className="link-button" onClick={()=>{setSignup(v=>!v);setError('');setSuccess('')}}>{signup?'Déjà un compte ? Se connecter':'Nouveau ici ? Créer un compte'}</button><div className="secure-note"><ShieldCheck size={16}/> Vos projets restent privés et synchronisés via Supabase.</div></section></div></div>;
+ const[email,setEmail]=useState('');
+ const[password,setPassword]=useState('');
+ const[confirmPassword,setConfirmPassword]=useState('');
+ const[signup,setSignup]=useState(false);
+ const[busy,setBusy]=useState(false);
+ const[error,setError]=useState('');
+ const[success,setSuccess]=useState('');
+ const switchMode=()=>{
+  setSignup(v=>!v);
+  setError('');
+  setSuccess('');
+  setPassword('');
+  setConfirmPassword('');
+ };
+ async function submit(e:FormEvent){
+  e.preventDefault();
+  if(busy)return;
+  setError('');setSuccess('');
+  const normalizedEmail=email.trim().toLowerCase();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)){setError('Saisissez une adresse e-mail valide.');return}
+  if(password.length<6){setError('Le mot de passe doit contenir au moins 6 caractères.');return}
+  if(signup&&password!==confirmPassword){setError('Les deux mots de passe ne correspondent pas.');return}
+  setBusy(true);
+  try{
+   if(signup){
+    const{data,error:signupError}=await db.auth.signUp({email:normalizedEmail,password});
+    if(signupError)throw signupError;
+    if(data.session)onAuth();
+    else{
+     setSuccess('Votre demande est enregistrée. Consultez votre boîte e-mail et confirmez votre adresse pour activer votre compte. Pensez aussi aux spams.');
+     setPassword('');setConfirmPassword('');
+    }
+   }else{
+    const{error:signinError}=await db.auth.signInWithPassword({email:normalizedEmail,password});
+    if(signinError)throw signinError;
+    onAuth();
+   }
+  }catch(e){
+   const raw=e instanceof Error?e.message:'';
+   const msg=/already registered|user already exists/i.test(raw)?'Cette adresse e-mail possède déjà un compte. Utilisez « Se connecter ».'
+    :/invalid login credentials/i.test(raw)?'E-mail ou mot de passe incorrect.'
+    :/email not confirmed/i.test(raw)?'Votre adresse e-mail n’est pas encore confirmée. Vérifiez votre messagerie.'
+    :/password should be at least/i.test(raw)?'Choisissez un mot de passe plus long.'
+    :/rate limit|too many requests/i.test(raw)?'Trop de tentatives. Réessayez un peu plus tard.'
+    :raw||'Une erreur est survenue. Veuillez réessayer.';
+   setError(msg);
+  }finally{setBusy(false)}
+ }
+ return <div className="auth-page"><div className="auth-aurora"/><div className="auth-layout">
+  <section className="auth-story">
+   <Brand/>
+   <div className="hero-pill"><Sparkles size={15}/> L’intelligence au service de votre imagination</div>
+   <h1>Une idée.<br/><span>Un film.</span><br/>Votre studio.</h1>
+   <p>Concevez vos histoires, orchestrez les scènes, organisez les médias et retrouvez vos productions dans un espace créatif unique.</p>
+   <div className="auth-benefits"><span><CheckCircle2 size={18}/> Studio intelligent</span><span><CheckCircle2 size={18}/> Projets synchronisés</span><span><CheckCircle2 size={18}/> Production audiovisuelle</span></div>
+  </section>
+  <section className="auth-box" aria-labelledby="auth-heading">
+   <div className="auth-box-icon"><Film size={26}/></div>
+   <div className="auth-eyebrow">{signup?'BIENVENUE DANS GALINGTOSH':'BON RETOUR'}</div>
+   <h2 id="auth-heading">{signup?'Créer mon compte':'Se connecter'}</h2>
+   <p>{signup?'Créez un compte pour retrouver vos projets sur Android et sur le web.':'Retrouvez le même studio et les mêmes projets que dans votre application Android.'}</p>
+   <div className="auth-mode-switch" role="group" aria-label="Mode d’authentification">
+    <button type="button" className={!signup?'selected':''} aria-pressed={!signup} onClick={()=>{if(signup)switchMode()}} disabled={busy}>Connexion</button>
+    <button type="button" className={signup?'selected':''} aria-pressed={signup} onClick={()=>{if(!signup)switchMode()}} disabled={busy}>Inscription</button>
+   </div>
+   <form onSubmit={e=>void submit(e)} noValidate>
+    <label>Adresse e-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="votre@email.com" required autoComplete="email" inputMode="email" disabled={busy}/></label>
+    <label>Mot de passe<input type="password" minLength={6} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Au moins 6 caractères" required autoComplete={signup?'new-password':'current-password'} disabled={busy}/></label>
+    {signup&&<label>Confirmer le mot de passe<input type="password" minLength={6} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Répétez votre mot de passe" required autoComplete="new-password" disabled={busy}/></label>}
+    {error&&<div className="auth-error" role="alert">{error}</div>}
+    {success&&<div className="auth-success" role="status">{success}</div>}
+    <button className="primary full" disabled={busy} type="submit">{busy?<LoaderCircle className="spin" size={18}/>:<ArrowRight size={18}/>} {busy?'Veuillez patienter…':signup?'Créer mon compte':'Se connecter'}</button>
+   </form>
+   <div className="auth-login-prompt">{signup?'Vous possédez déjà un compte ?':'Vous découvrez Galingtosh ?'} <button className="link-button" type="button" disabled={busy} onClick={switchMode}>{signup?'Se connecter':'Créer un compte'}</button></div>
+   <div className="secure-note"><ShieldCheck size={16}/> Vos projets restent privés et synchronisés via Supabase.</div>
+  </section>
+ </div></div>;
 }
 export function App(){
  const[user,setUser]=useState<SessionUser|null>(null),[authReady,setAuthReady]=useState(false);
