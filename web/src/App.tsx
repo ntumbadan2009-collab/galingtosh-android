@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useMemo,useRef,useState,type FormEvent,type ChangeEvent} from 'react';
-import {Activity,ArrowRight,Check,CheckCircle2,ChevronDown,ChevronRight,CirclePlus,Clapperboard,Clock3,Download,Edit3,ExternalLink,Film,FolderOpen,Grid2X2,Image as ImageIcon,Layers3,LoaderCircle,LogOut,MessageCircle,MoreVertical,Music2,Paperclip,Pause,Play,Plus,Send,Settings,Settings2,ShieldCheck,Sparkles,Video,X,AlertCircle,Copy} from 'lucide-react';
+import {Activity,ArrowRight,Check,CheckCircle2,ChevronDown,ChevronRight,CirclePlus,Clapperboard,Clock3,Download,Edit3,ExternalLink,Film,FolderOpen,Grid2X2,Image as ImageIcon,Layers3,LoaderCircle,LogOut,MessageCircle,MoreVertical,Music2,Paperclip,Pause,Play,Plus,Send,Settings,Settings2,ShieldCheck,Sparkles,Video,X,AlertCircle,Copy,Eye,EyeOff} from 'lucide-react';
 import type {LucideIcon} from 'lucide-react';
 // Import the same pure, security-filtered activity parser used by Android.
 import {buildActivityTurns,type ActivityTurn} from './agentActivity';
@@ -16,6 +16,8 @@ function Auth({onAuth}:{onAuth:()=>void}){
  const[email,setEmail]=useState('');
  const[password,setPassword]=useState('');
  const[confirmPassword,setConfirmPassword]=useState('');
+ const[showPassword,setShowPassword]=useState(false);
+ const[showConfirmPassword,setShowConfirmPassword]=useState(false);
  const[signup,setSignup]=useState(false);
  const[busy,setBusy]=useState(false);
  const[error,setError]=useState('');
@@ -26,6 +28,8 @@ function Auth({onAuth}:{onAuth:()=>void}){
   setSuccess('');
   setPassword('');
   setConfirmPassword('');
+  setShowPassword(false);
+  setShowConfirmPassword(false);
  };
  async function submit(e:FormEvent){
   e.preventDefault();
@@ -104,8 +108,8 @@ function Auth({onAuth}:{onAuth:()=>void}){
    </div>
    <form onSubmit={e=>void submit(e)} noValidate>
     <label>Adresse e-mail<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="votre@email.com" required autoComplete="email" inputMode="email" disabled={busy}/></label>
-    <label>Mot de passe<input type="password" minLength={6} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Au moins 6 caractères" required autoComplete={signup?'new-password':'current-password'} disabled={busy}/></label>
-    {signup&&<label>Confirmer le mot de passe<input type="password" minLength={6} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Répétez votre mot de passe" required autoComplete="new-password" disabled={busy}/></label>}
+    <label>Mot de passe<span className="auth-password-field"><input type={showPassword?'text':'password'} minLength={6} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Au moins 6 caractères" required autoComplete={signup?'new-password':'current-password'} disabled={busy}/><button type="button" className="auth-password-toggle" aria-label={showPassword?'Masquer le mot de passe':'Afficher le mot de passe'} title={showPassword?'Masquer le mot de passe':'Afficher le mot de passe'} aria-pressed={showPassword} onClick={()=>setShowPassword(v=>!v)}>{showPassword?<EyeOff size={21}/>:<Eye size={21}/>}</button></span></label>
+    {signup&&<label>Confirmer le mot de passe<span className="auth-password-field"><input type={showConfirmPassword?'text':'password'} minLength={6} value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Répétez votre mot de passe" required autoComplete="new-password" disabled={busy}/><button type="button" className="auth-password-toggle" aria-label={showConfirmPassword?'Masquer la confirmation du mot de passe':'Afficher la confirmation du mot de passe'} title={showConfirmPassword?'Masquer la confirmation du mot de passe':'Afficher la confirmation du mot de passe'} aria-pressed={showConfirmPassword} onClick={()=>setShowConfirmPassword(v=>!v)}>{showConfirmPassword?<EyeOff size={21}/>:<Eye size={21}/>}</button></span></label>}
     {error&&<div className="auth-error" role="alert">{error}</div>}
     {success&&<div className="auth-success" role="status">{success}</div>}
     <button className="primary full" disabled={busy} type="submit">{busy?<LoaderCircle className="spin" size={18}/>:<ArrowRight size={18}/>} {busy?'Veuillez patienter…':signup?'Créer mon compte':'Se connecter'}</button>
