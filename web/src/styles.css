@@ -586,3 +586,40 @@
   }
   .shell.keyboard-open .composer textarea{font-size:16px}
 }
+
+
+/* First visit: authentication should be the first usable screen on phones,
+   not a full-screen marketing hero preceding the form. */
+.auth-mode-switch{display:flex;gap:6px;padding:5px;border:1px solid #443453;background:#120e1d;border-radius:14px;margin:0 0 22px}
+.auth-mode-switch button{flex:1;min-width:0;min-height:42px;border:0;border-radius:10px;background:transparent;color:#ac9bbd;font-size:14px;font-weight:750;cursor:pointer}
+.auth-mode-switch button.selected{background:#36204f;color:#fff;box-shadow:inset 0 0 0 1px #654080}
+.auth-mode-switch button:disabled{opacity:.6}
+.auth-eyebrow{font-size:10px;font-weight:800;color:#c386ff;letter-spacing:.14em;margin-bottom:10px}
+.auth-login-prompt{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;align-items:center;color:#ad9fbf;font-size:13px;margin:18px 0 0}
+.auth-login-prompt .link-button{margin:0;min-height:36px;padding:4px 5px}
+.auth-box input{font-size:16px;min-height:47px}
+.auth-box input:disabled{opacity:.75}
+.auth-box .auth-success,.auth-box .auth-error{font-size:13px;line-height:1.55;padding:13px 14px}
+.auth-box .auth-success{border-color:#428e6b;color:#d7ffe9}
+.auth-box .primary.full{min-height:50px;border-radius:13px}
+@media(max-width:620px){
+  .auth-page{height:100dvh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+  .auth-layout{display:flex;flex-direction:column;align-items:stretch;min-height:100%;gap:16px;padding:20px 16px 36px}
+  .auth-story{display:contents}
+  .auth-story .brand{order:0;margin:0 0 5px;flex:0 0 auto}
+  .auth-box{order:1;width:100%;max-width:480px;margin:0 auto;padding:24px 20px;border-radius:24px;box-shadow:0 16px 50px #0008}
+  .auth-story .hero-pill{order:2;align-self:center;margin:15px 0 0}
+  .auth-story h1{order:3;font-size:clamp(34px,10vw,44px);text-align:center;line-height:1.1;margin:0}
+  .auth-story>p{order:4;font-size:13px;line-height:1.65;text-align:center;margin:0 auto;max-width:450px}
+  .auth-benefits{order:5;justify-content:center;margin:6px 0 0}
+  .auth-benefits>span{font-size:10px;padding:8px 10px}
+  .auth-box h2{font-size:25px;line-height:1.2}
+  .auth-box>p{font-size:13px;line-height:1.6;margin-bottom:20px}
+  .auth-box .secure-note{margin-top:17px;line-height:1.4}
+  .auth-mode-switch{margin-bottom:20px}
+  .auth-box form{gap:15px}
+}
+@media(max-width:360px){
+  .auth-layout{padding-left:12px;padding-right:12px}
+  .auth-box{padding:20px 15px}
+}
