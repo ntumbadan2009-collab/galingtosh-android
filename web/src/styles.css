@@ -696,3 +696,73 @@
 @media(prefers-reduced-motion:reduce){
  .auth-cinematic-orb,.auth-motion-card,.auth-film-track,.auth-scene-frame{animation:none!important}
 }
+
+
+/* Visible cinematic timeline: sits inside auth card so the experience reads
+   as an audiovisual studio even on narrow phone screens. Pure CSS motion. */
+.auth-cinema-stage{
+ position:relative;height:178px;overflow:hidden;isolation:isolate;
+ border:1px solid rgba(183,107,248,.39);border-radius:18px;
+ background:radial-gradient(ellipse at 40% 130%,rgba(151,55,219,.38),transparent 67%),linear-gradient(145deg,#20112f,#110c20 80%);
+ margin:0 0 23px;
+}
+.auth-stage-glow{
+ position:absolute;inset:-45%;background:conic-gradient(from 25deg,transparent 12%,rgba(170,78,232,.17) 23%,transparent 37%,rgba(252,133,203,.14) 62%,transparent 80%);
+ animation:auth-stage-rotate 23s linear infinite;
+}
+.auth-stage-caption{
+ position:absolute;z-index:2;top:12px;left:14px;right:14px;
+ display:flex;align-items:center;gap:8px;color:#e6c9fa;
+ font-size:9px;letter-spacing:.14em;font-weight:800;
+}
+.auth-stage-live-dot{height:7px;width:7px;border-radius:50%;background:#f178c9;box-shadow:0 0 10px #f178c9;animation:auth-stage-blink 2.8s ease-in-out infinite}
+.auth-stage-counter{margin-left:auto;font-family:monospace;color:#a783c9;letter-spacing:.04em}
+.auth-stage-scenes{
+ position:absolute;inset:35px 12px 27px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;
+}
+.auth-stage-panel{
+ position:relative;min-width:0;overflow:hidden;display:flex;align-items:center;justify-content:center;
+ border-radius:12px;border:1px solid rgba(206,140,252,.29);background:linear-gradient(150deg,rgba(92,36,151,.64),rgba(34,18,53,.68));
+ box-shadow:inset 0 0 30px rgba(136,59,199,.15);
+ animation:auth-stage-rise 7.5s ease-in-out infinite;
+}
+.auth-stage-panel:nth-child(2){animation-delay:-2.5s;background:linear-gradient(150deg,rgba(130,55,157,.60),rgba(46,20,66,.66))}
+.auth-stage-panel:nth-child(3){animation-delay:-5s;background:linear-gradient(150deg,rgba(177,69,141,.50),rgba(49,22,65,.66))}
+.auth-stage-panel svg{color:#f4b5f1;filter:drop-shadow(0 2px 9px rgba(238,139,255,.3));animation:auth-stage-icon 6s ease-in-out infinite}
+.auth-stage-panel:nth-child(2) svg{animation-delay:-2s}
+.auth-stage-panel:nth-child(3) svg{animation-delay:-4s}
+.auth-panel-number{position:absolute;top:9px;left:8px;color:#f4c7f6;opacity:.9;font-size:8px;font-weight:850;letter-spacing:.05em;white-space:nowrap}
+.auth-panel-wave{position:absolute;bottom:0;left:-60%;height:2px;width:85%;background:linear-gradient(90deg,transparent,#e883e5,transparent);animation:auth-stage-scan 5.5s linear infinite}
+.auth-stage-panel:nth-child(2) .auth-panel-wave{animation-delay:-2s}
+.auth-stage-panel:nth-child(3) .auth-panel-wave{animation-delay:-4s}
+.auth-stage-timeline{position:absolute;left:14px;right:14px;bottom:12px;height:3px;border-radius:3px;background:#49305d;overflow:hidden}
+.auth-stage-progress{display:block;height:100%;width:34%;background:linear-gradient(90deg,#e773be,#8d52fa);border-radius:3px;animation:auth-stage-progress 9s ease-in-out infinite alternate}
+@keyframes auth-stage-rotate{to{transform:rotate(360deg)}}
+@keyframes auth-stage-blink{50%{opacity:.3}}
+@keyframes auth-stage-rise{0%,100%{translate:0 0}50%{translate:0 -5px}}
+@keyframes auth-stage-icon{0%,100%{transform:scale(.93)}50%{transform:scale(1.08)}}
+@keyframes auth-stage-scan{0%{translate:0 0}100%{translate:210% 0}}
+@keyframes auth-stage-progress{to{width:92%}}
+@media(max-width:620px){
+ .auth-layout{padding-top:15px;gap:12px}
+ .auth-story .brand{margin-bottom:0}
+ .auth-box{padding:15px 16px 20px;border-radius:22px;background:linear-gradient(145deg,rgba(35,22,50,.98),rgba(21,15,31,.98))}
+ .auth-cinema-stage{height:145px;margin-bottom:17px;border-radius:16px}
+ .auth-stage-scenes{inset:31px 10px 24px;gap:6px}
+ .auth-stage-panel{border-radius:9px}
+ .auth-stage-panel svg{height:25px;width:25px}
+ .auth-panel-number{font-size:7px;left:6px;top:7px}
+ .auth-stage-caption{font-size:8px;top:10px;left:10px;right:10px}
+ .auth-box-icon{display:none}
+ .auth-box h2{font-size:23px;margin-bottom:5px}
+ .auth-box>p{font-size:12px;margin-bottom:14px;line-height:1.5}
+ .auth-box .auth-eyebrow{margin-bottom:5px}
+ .auth-mode-switch{margin-bottom:14px}
+ .auth-box form{gap:11px}
+ .auth-box .secure-note{margin-top:13px}
+ .auth-box .auth-login-prompt{margin-top:12px}
+}
+@media(prefers-reduced-motion:reduce){
+ .auth-stage-glow,.auth-stage-live-dot,.auth-stage-panel,
+ .auth-stage-panel svg,.auth-panel-wave,.auth-stage-progress{animation:none!important}
+}
