@@ -253,6 +253,7 @@ export function App(){
  async function sendMessage(e:FormEvent){
   e.preventDefault();const message=composer.trim();if((!message&&!attachments.length)||busy||actionBusy||!user)return;
   setBusy(true);activeCall.current=true;setError('');
+  const requestStartedAt=Date.now();
   const thisProject=projectId;
   const optimistic:Message={id:'local-'+Date.now(),role:'user',content:message||'Médias joints',created_at:new Date().toISOString()};
   setMessages(v=>[...v,optimistic]);setComposer('');scrollLatest();
@@ -275,7 +276,43 @@ export function App(){
     }
     if(thisProject)await refreshProject(thisProject);
    }
-  }catch(e){alertError(e);if(cid){try{const ms=await listMessages(cid);if(latestRef.current.projectId===thisProject){setMessages([...ms].reverse().filter(x=>x.content?.trim()));const rows=await listActivityRows(cid);setActivityTurns(buildActivityTurns([...rows].reverse()));}}catch{/* do not duplicate a potentially committed request */}}}
+  }catch(e){
+   // The Edge Function may have committed a response before the browser lost
+   // the HTTP reply. Reconcile persisted state before displaying a failure.
+   let recovered=false;
+   if(cid){
+    try{
+     const saved=[...(await listMessages(cid))].reverse();
+     const expected=message||'Analyse les médias joints et propose un montage.';
+     const recentUserIndex=saved.findIndex(m=>m.role==='user'&&m.content?.trim()===expected&&new Date(m.created_at).getTime()>=requestStartedAt-5000);
+     const reply=recentUserIndex>=0?saved.slice(recentUserIndex+1).find(m=>m.role==='assistant'&&m.content?.trim()):undefined;
+     if(latestRef.current.projectId===thisProject){
+      setMessages(saved.filter(m=>m.content?.trim()));
+      const rows=await listActivityRows(cid);
+      setActivityTurns(buildActivityTurns([...rows].reverse()));
+      if(reply){
+       recovered=true;
+       setError('');
+       // The agent may have created and linked a project while the reply was lost.
+       const {data:linked}=await db.from('conversations').select('project_id').eq('id',cid).eq('user_id',user.id).maybeSingle();
+       if(linked?.project_id&&linked.project_id!==thisProject){
+        await refreshGlobal();
+        await openProject(linked.project_id);
+       }else if(thisProject){await refreshProject(thisProject);}
+       scrollLatest();
+      }else if(recentUserIndex>=0){
+       setError('Votre demande est enregistrée, mais sa réponse n’est pas encore confirmée. Rouvrez cette conversation pour vérifier son avancement avant de renvoyer.');
+       recovered=true;
+      }
+     }else{recovered=true;}
+    }catch{/* Keep the original uncertainty; never automatically resend. */}
+   }
+   if(!recovered){
+    alertError(e);
+    // The unsent text remains recoverable without duplicating the request.
+    setComposer(current=>current.trim()?current:message);
+   }
+  }
   finally{setBusy(false);activeCall.current=false;}
  }
  async function runMission(command:'approve'|'pause'|'resume'|'cancel'){
