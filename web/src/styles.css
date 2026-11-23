@@ -451,3 +451,113 @@
  .project-filter{padding:0 12px;font-size:13px}
  .compose-wrap{padding-left:10px;padding-right:10px}
 }
+
+
+/* Full-screen account preferences: aligned with Galingtosh Android settings.
+   The underlying studio remains mounted so conversations and project state are preserved. */
+.settings-screen{
+  position:fixed;inset:0;z-index:110;
+  display:flex;flex-direction:column;overflow:hidden;
+  background:radial-gradient(circle at 100% 0%,#211334 0,transparent 22%),#090613;
+  color:#f8f4ff;
+}
+.settings-screen-header{
+  width:100%;max-width:900px;margin:0 auto;
+  flex:0 0 auto;min-height:102px;
+  padding:18px 32px;display:flex;justify-content:space-between;align-items:center;gap:20px;
+}
+.settings-screen-brand{display:flex;flex-direction:column;gap:4px;min-width:0}
+.settings-screen-brand .brand-icon{height:62px;width:62px;border-radius:19px;box-shadow:none}
+.settings-screen-brand .brand-icon svg{height:30px;width:30px}
+.settings-screen-brand .brand-copy strong{font-size:30px;line-height:1.2}
+.settings-screen-brand>span{padding-left:78px;letter-spacing:.18em;color:#94899f;font-size:11px;font-weight:800}
+.settings-screen-gear{
+  width:62px;height:62px;flex:none;border-radius:50%;
+  border:1px solid #382b4b;background:#1a142a;color:#b9aacb;
+  display:flex;justify-content:center;align-items:center;
+}
+.settings-screen-content{
+  width:100%;max-width:900px;margin:0 auto;flex:1 1 auto;min-height:0;
+  overflow-y:auto;overscroll-behavior:contain;
+  padding:42px 32px 40px;
+}
+.settings-screen-eyebrow{
+  color:#bd80fb;font-size:12px;font-weight:800;
+  letter-spacing:.19em;margin-bottom:18px;
+}
+.settings-screen-content h1{
+  margin:0 0 26px;font-family:Outfit,'DM Sans',sans-serif;
+  font-size:42px;font-weight:800;line-height:1.14;letter-spacing:-.035em;
+}
+.settings-account-card{
+  border:1px solid #3a2c4b;border-radius:27px;
+  background:#171222;padding:29px;max-width:750px;
+}
+.settings-account-person{display:flex;align-items:center;gap:17px;min-width:0}
+.settings-account-avatar{
+  width:66px;height:66px;flex:none;border-radius:50%;background:#271b3d;
+  display:flex;align-items:center;justify-content:center;
+  font-size:26px;color:#b666fa;font-weight:800;
+}
+.settings-account-ident{display:flex;flex-direction:column;gap:6px;min-width:0}
+.settings-account-ident strong{
+  font-size:19px;line-height:1.4;overflow-wrap:anywhere;
+  font-family:Outfit,'DM Sans',sans-serif;font-weight:800;
+}
+.settings-account-ident>span{font-size:16px;color:#a99db8}
+.settings-logout-button{
+  margin-top:27px;border-radius:20px;width:100%;min-height:65px;
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  background:#1d172e;border:1px solid #3d2c54;
+  color:#f7f1ff;font-size:16px;font-weight:800;
+}
+.settings-logout-button svg{color:#a75bff}
+.settings-logout-button:hover{background:#281d3b;border-color:#724a9d}
+.settings-screen-credit{
+  display:flex;flex-direction:column;align-items:center;
+  gap:12px;margin:44px 0 0;color:#94869f;font-size:12px;
+  letter-spacing:.14em;text-align:center;
+}
+.settings-screen-tabs{
+  display:flex;flex:0 0 auto;height:82px;min-height:82px;
+  border-top:1px solid #30213f;background:#100c1c;
+  justify-content:space-around;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.settings-screen-tabs button{
+  border:0;background:transparent;color:#998da8;
+  flex:1;max-width:220px;min-width:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:7px;position:relative;font-size:12px;font-weight:800;
+}
+.settings-screen-tabs button.active{color:#f7f0ff}
+.settings-screen-tabs button.active svg{color:#b05bff}
+.settings-screen-tabs button.active:before{
+  content:"";position:absolute;top:0;left:calc(50% - 24px);
+  width:48px;height:3px;border-radius:10px;background:#a652f7;
+}
+@media(max-width:620px){
+  .settings-screen-header{min-height:96px;padding:16px 20px}
+  .settings-screen-brand .brand{gap:12px}
+  .settings-screen-brand .brand-icon{height:54px;width:54px;border-radius:16px}
+  .settings-screen-brand .brand-icon svg{height:27px;width:27px}
+  .settings-screen-brand .brand-copy strong{font-size:25px}
+  .settings-screen-brand>span{font-size:9px;padding-left:66px;letter-spacing:.17em}
+  .settings-screen-gear{height:53px;width:53px}
+  .settings-screen-content{padding:33px 20px 26px}
+  .settings-screen-eyebrow{font-size:11px;margin-bottom:21px}
+  .settings-screen-content h1{font-size:31px;margin-bottom:24px}
+  .settings-account-card{padding:21px 18px;border-radius:23px}
+  .settings-account-person{gap:14px}
+  .settings-account-avatar{height:52px;width:52px;font-size:23px}
+  .settings-account-ident strong{font-size:16px}
+  .settings-account-ident>span{font-size:14px}
+  .settings-logout-button{margin-top:23px;min-height:60px;font-size:15px}
+  .settings-screen-credit{margin-top:40px;font-size:11px;gap:11px}
+  .settings-screen-tabs{height:72px;min-height:72px}
+  .settings-screen-tabs button{font-size:11px;gap:5px}
+}
+@media(max-width:350px){
+  .settings-screen-content h1{font-size:27px}
+  .settings-screen-brand .brand-copy strong{font-size:22px}
+}
