@@ -570,8 +570,12 @@
   .shell.keyboard-open .studio,
   .shell.keyboard-open .studio-body,
   .shell.keyboard-open .chat-column{min-height:0!important}
-  .shell.keyboard-open .mobile-nav.android-tabs,
-  .shell.keyboard-open .topbar.android-header,
+  /* The Android branding/header must stay visible. Only the bottom tabs are hidden. */
+  .shell.keyboard-open .mobile-nav.android-tabs{display:none!important}
+  .shell.keyboard-open .topbar.android-header{
+    display:flex!important;
+    flex:0 0 auto;
+  }
   .shell.keyboard-open .studio-head.android-project-header{display:none!important}
   .shell.keyboard-open .conversation{min-height:0!important;overscroll-behavior:contain}
   .shell.keyboard-open .compose-wrap{
