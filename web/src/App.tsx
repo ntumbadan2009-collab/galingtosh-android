@@ -61,7 +61,21 @@ function Auth({onAuth}:{onAuth:()=>void}){
    setError(msg);
   }finally{setBusy(false)}
  }
- return <div className="auth-page"><div className="auth-aurora"/><div className="auth-layout">
+ return <div className="auth-page"><div className="auth-aurora"/>
+  <div className="auth-cinematic-bg" aria-hidden="true">
+   <div className="auth-film-grid"/>
+   <div className="auth-cinematic-orb auth-orb-one"/>
+   <div className="auth-cinematic-orb auth-orb-two"/>
+   <div className="auth-film-track auth-film-track-left"><span/><span/><span/><span/><span/><span/></div>
+   <div className="auth-film-track auth-film-track-right"><span/><span/><span/><span/><span/><span/></div>
+   <div className="auth-motion-card auth-motion-storyboard"><Layers3 size={20}/><span>Storyboard</span><i>01 — 06</i></div>
+   <div className="auth-motion-card auth-motion-studio"><Clapperboard size={20}/><span>Studio</span><i>REC</i></div>
+   <div className="auth-motion-card auth-motion-scenes"><Film size={20}/><span>Scènes</span><i>24 FPS</i></div>
+   <div className="auth-motion-card auth-motion-create"><Sparkles size={20}/><span>Création IA</span><i>✦</i></div>
+   <div className="auth-scene-frame auth-scene-frame-one"><span className="auth-scene-label">SCÈNE 01</span><span className="auth-frame-horizon"/></div>
+   <div className="auth-scene-frame auth-scene-frame-two"><span className="auth-scene-label">SCÈNE 02</span><span className="auth-frame-horizon"/></div>
+  </div>
+  <div className="auth-layout">
   <section className="auth-story">
    <Brand/>
    <div className="hero-pill"><Sparkles size={15}/> L’intelligence au service de votre imagination</div>
