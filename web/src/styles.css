@@ -368,11 +368,7 @@
  .chat-agent-trigger{padding:10px}
  .chat-agent-trigger strong{font-size:12px}
  .chat-agent-trigger small{font-size:10px}
- /* Native app hides its toolbar and tabs while the keyboard is open. */
- .shell:has(.composer textarea:focus) .topbar.android-header,
- .shell:has(.composer textarea:focus) .mobile-nav.android-tabs,
- .shell:has(.composer textarea:focus) .studio-head.android-project-header{display:none!important}
- .shell:has(.composer textarea:focus) .proposal-banner>small{display:none}
+ /* Keyboard UI uses real visualViewport state, not focus alone. */
 }
 
 /* Direct native measurements: s.projectIcon width 78, height 58. */
@@ -560,4 +556,29 @@
 @media(max-width:350px){
   .settings-screen-content h1{font-size:27px}
   .settings-screen-brand .brand-copy strong{font-size:22px}
+}
+
+/* Soft keyboard: honor the actually visible area even inside Chrome Custom Tabs.
+   Keep the composer inside the viewport, while the feed remains independently scrollable. */
+@media(max-width:900px){
+  .shell.keyboard-open{
+    height:var(--galingtosh-visible-height,100dvh)!important;
+    max-height:var(--galingtosh-visible-height,100dvh)!important;
+    min-height:0;
+  }
+  .shell.keyboard-open .workspace,
+  .shell.keyboard-open .studio,
+  .shell.keyboard-open .studio-body,
+  .shell.keyboard-open .chat-column{min-height:0!important}
+  .shell.keyboard-open .mobile-nav.android-tabs,
+  .shell.keyboard-open .topbar.android-header,
+  .shell.keyboard-open .studio-head.android-project-header{display:none!important}
+  .shell.keyboard-open .conversation{min-height:0!important;overscroll-behavior:contain}
+  .shell.keyboard-open .compose-wrap{
+    flex-shrink:0!important;
+    position:relative;
+    padding-bottom:max(8px,env(safe-area-inset-bottom,0px));
+    z-index:2;
+  }
+  .shell.keyboard-open .composer textarea{font-size:16px}
 }
