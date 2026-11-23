@@ -766,3 +766,16 @@
  .auth-stage-glow,.auth-stage-live-dot,.auth-stage-panel,
  .auth-stage-panel svg,.auth-panel-wave,.auth-stage-progress{animation:none!important}
 }
+
+
+/* Show/hide password — Galingtosh authentication */
+.auth-password-field{position:relative;display:block;width:100%}
+.auth-box .auth-password-field input{display:block;width:100%;padding-right:62px}
+.auth-password-toggle{
+ position:absolute;top:50%;right:5px;transform:translateY(-50%);
+ width:46px;height:44px;display:flex;align-items:center;justify-content:center;
+ border:0;border-radius:10px;background:transparent;color:#c8acd9;
+ cursor:pointer;touch-action:manipulation;
+}
+.auth-password-toggle:hover{color:#fff;background:rgba(170,103,236,.12)}
+.auth-password-toggle:focus-visible{outline:2px solid #c188ff;outline-offset:1px}
