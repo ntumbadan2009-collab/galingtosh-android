@@ -779,3 +779,7 @@
 }
 .auth-password-toggle:hover{color:#fff;background:rgba(170,103,236,.12)}
 .auth-password-toggle:focus-visible{outline:2px solid #c188ff;outline-offset:1px}
+
+/* Approved Galingtosh emblem; retain existing brand layout. */
+.brand-icon,.auth-box-icon{background:#000;overflow:hidden}
+.galingtosh-brand-image{display:block;width:100%;height:100%;object-fit:contain;border-radius:inherit}

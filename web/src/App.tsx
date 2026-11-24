@@ -7,7 +7,7 @@ import {db,listProjects,listRenders,listAssets,listConversations,listMessages,li
 type Attachment={id:string;name:string};
 type Dialog='create'|'plan'|'scenes'|'settings'|null;
 type SessionUser={id:string;email?:string};
-function FilmstripLogo(){return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="25" height="25" aria-hidden="true"><path d="M436,80H76a44.05,44.05,0,0,0-44,44V388a44.05,44.05,0,0,0,44,44H436a44.05,44.05,0,0,0,44-44V124A44.05,44.05,0,0,0,436,80ZM112,388a12,12,0,0,1-12,12H76a12,12,0,0,1-12-12V364a12,12,0,0,1,12-12h24a12,12,0,0,1,12,12Zm0-80a12,12,0,0,1-12,12H76a12,12,0,0,1-12-12V284a12,12,0,0,1,12-12h24a12,12,0,0,1,12,12Zm0-80a12,12,0,0,1-12,12H76a12,12,0,0,1-12-12V204a12,12,0,0,1,12-12h24a12,12,0,0,1,12,12Zm0-80a12,12,0,0,1-12,12H76a12,12,0,0,1-12-12V124a12,12,0,0,1,12-12h24a12,12,0,0,1,12,12ZM353.68,272H158.32a16,16,0,0,1,0-32H353.68a16,16,0,1,1,0,32ZM448,388a12,12,0,0,1-12,12H412a12,12,0,0,1-12-12V364a12,12,0,0,1,12-12h24a12,12,0,0,1,12,12Zm0-80a12,12,0,0,1-12,12H412a12,12,0,0,1-12-12V284a12,12,0,0,1,12-12h24a12,12,0,0,1,12,12Zm0-80a12,12,0,0,1-12,12H412a12,12,0,0,1-12-12V204a12,12,0,0,1,12-12h24a12,12,0,0,1,12,12Zm0-80a12,12,0,0,1-12,12H412a12,12,0,0,1-12-12V124a12,12,0,0,1,12-12h24a12,12,0,0,1,12,12Z" fill="#130D24"/></svg>}
+function FilmstripLogo(){return <img className="galingtosh-brand-image" src="/galingtosh-icon.webp" alt="" aria-hidden="true"/>}
 function Brand({small=false}:{small?:boolean}){return <div className={'brand '+(small?'brand--small':'')}><span className="brand-icon"><FilmstripLogo/></span><div className="brand-copy"><strong>Galingtosh</strong>{!small&&<span>STUDIO AUDIOVISUEL IA</span>}</div></div>}
 function IconButton({icon:Icon,label,onClick,disabled}:{icon:LucideIcon;label:string;onClick:()=>void;disabled?:boolean}){return <button className="icon-button" aria-label={label} title={label} onClick={onClick} disabled={disabled}><Icon size={19}/></button>}
 function Empty({icon:Icon,title,desc}:{icon:LucideIcon;title:string;desc:string}){return <div className="empty"><span className="empty-icon"><Icon size={29}/></span><h3>{title}</h3><p>{desc}</p></div>}
@@ -98,7 +98,7 @@ function Auth({onAuth}:{onAuth:()=>void}){
     </div>
     <div className="auth-stage-timeline"><span className="auth-stage-progress"/></div>
    </div>
-   <div className="auth-box-icon"><Film size={26}/></div>
+   <div className="auth-box-icon"><FilmstripLogo/></div>
    <div className="auth-eyebrow">{signup?'BIENVENUE DANS GALINGTOSH':'BON RETOUR'}</div>
    <h2 id="auth-heading">{signup?'Créer mon compte':'Se connecter'}</h2>
    <p>{signup?'Créez un compte pour retrouver vos projets sur Android et sur le web.':'Retrouvez le même studio et les mêmes projets que dans votre application Android.'}</p>
