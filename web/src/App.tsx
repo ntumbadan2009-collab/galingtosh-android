@@ -445,7 +445,6 @@ export function App(){
       <p>Rendu : {latestRender.status==='done'?'Terminé':latestRender.status==='running'?'En production':latestRender.status==='failed'?'Échec':latestRender.status==='queued'?'En attente':latestRender.status} · {latestRender.progress||0}%</p>
       {['queued','running'].includes(latestRender.status)&&<div className="progress-track"><span style={{width:Math.max(0,Math.min(100,latestRender.progress||0))+'%'}}/></div>}
       {latestRender.error&&<button className="text-link" onClick={()=>window.alert(latestRender.error||'')}>Production interrompue · Détails</button>}
-      {latestRender.warnings?.map((warning,i)=><p key={i}>{warning}</p>)}
       {['queued','running'].includes(latestRender.status)&&<button className="outline danger" onClick={()=>{if(window.confirm('Annuler ce rendu ? Le montage restera conservé.'))void cancelSpecificRender(latestRender.id);}}>Annuler le rendu</button>}
       {latestRender.output_path&&<button className="outline" onClick={()=>void playRender(latestRender.output_path!)}>Ouvrir la vidéo MP4</button>}
      </div>}
@@ -455,7 +454,6 @@ export function App(){
       <div><strong>{projects.find(p=>p.id===j.project_id)?.title||'Production'} · v{j.film_version}</strong>
       <p>{j.status==='done'?'Terminé':j.status==='failed'?'Échec':j.status==='running'?'En production':j.status==='queued'?'En attente':j.status} · {j.progress||0}%</p>
       {j.error&&<button className="text-link" onClick={()=>window.alert(j.error||'')}>Production interrompue · Détails</button>}
-      {j.warnings?.map((warning,i)=><p key={i}>{warning}</p>)}
       </div>
       {j.output_path&&<button className="project-item-menu" aria-label="Ouvrir cette vidéo" onClick={()=>void playRender(j.output_path!)}><Download size={20}/></button>}
     </div>)}
