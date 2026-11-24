@@ -449,15 +449,6 @@ export function App(){
       {latestRender.output_path&&<button className="outline" onClick={()=>void playRender(latestRender.output_path!)}>Ouvrir la vidéo MP4</button>}
      </div>}
     </section>}
-    <section className="native-recent-productions"><h2>VERSIONS ET PRODUCTIONS RÉCENTES</h2>
-    {jobs.slice(0,8).map(j=><div className="native-recent-row" key={j.id}>
-      <div><strong>{projects.find(p=>p.id===j.project_id)?.title||'Production'} · v{j.film_version}</strong>
-      <p>{j.status==='done'?'Terminé':j.status==='failed'?'Échec':j.status==='running'?'En production':j.status==='queued'?'En attente':j.status} · {j.progress||0}%</p>
-      {j.error&&<button className="text-link" onClick={()=>window.alert(j.error||'')}>Production interrompue · Détails</button>}
-      </div>
-      {j.output_path&&<button className="project-item-menu" aria-label="Ouvrir cette vidéo" onClick={()=>void playRender(j.output_path!)}><Download size={20}/></button>}
-    </div>)}
-    </section>
    </section>}
    {tab==='media'&&<section className="page android-media">
     <div className="android-media-title"><h1>Médias</h1><button className="project-add" aria-label="Importer un média" title="Importer un média" onClick={()=>{
