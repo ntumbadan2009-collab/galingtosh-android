@@ -9,9 +9,44 @@ type Attachment={id:string;name:string};
 type Dialog='create'|'plan'|'scenes'|'settings'|null;
 type SessionUser={id:string;email?:string};
 function FilmstripLogo(){return <img className="galingtosh-brand-image" src="/galingtosh-icon.webp" alt="" aria-hidden="true"/>}
-function CompletedProjectLogo({title,onPlay}:{title:string;onPlay:()=>void}){
- return <button type="button" className="project-item-art project-completed-logo" aria-label={'Lire la vidéo de '+title} title="Lire la vidéo" onClick={onPlay}>
-  <img className="project-completed-logo-image" src="/galingtosh-icon.webp?v=2" width={52} height={52} alt="" draggable={false}/>
+/** Capture one real frame from the private rendered video; do not autoplay. */
+function CompletedProjectLogo({path,title,onPlay}:{path:string;title:string;onPlay:()=>void}){
+ const root=useRef<HTMLButtonElement>(null);
+ const frame=useRef<HTMLCanvasElement>(null);
+ const target=useRef<number|null>(null);
+ const [url,setUrl]=useState<string|null>(null);
+ const [frameReady,setFrameReady]=useState(false);
+ useEffect(()=>{
+  let active=true,requested=false;
+  const load=()=>{if(requested)return;requested=true;void signedOutput(path).then(value=>{if(active)setUrl(value)}).catch(()=>{/* Keep the official logo if the video cannot be accessed. */});};
+  const element=root.current;
+  let observer:IntersectionObserver|undefined;
+  if(element&&typeof IntersectionObserver!=='undefined'){
+   observer=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting)){observer?.disconnect();load();}},{rootMargin:'100px'});
+   observer.observe(element);
+  }else load();
+  return()=>{active=false;observer?.disconnect();};
+ },[path]);
+ function capture(video:HTMLVideoElement){
+  if(target.current===null||video.seeking||video.readyState<2||!video.videoWidth||!video.videoHeight)return;
+  if(Math.abs(video.currentTime-target.current)>.25)return;
+  const canvas=frame.current,context=canvas?.getContext('2d');
+  if(!canvas||!context)return;
+  try{
+   const scale=Math.max(canvas.width/video.videoWidth,canvas.height/video.videoHeight);
+   const w=video.videoWidth*scale,h=video.videoHeight*scale;
+   context.drawImage(video,(canvas.width-w)/2,(canvas.height-h)/2,w,h);
+   setFrameReady(true);setUrl(null);
+  }catch{/* A failed capture must not prevent playback. */setUrl(null);}
+ }
+ return <button type="button" ref={root} className="project-item-art project-completed-logo" aria-label={'Lire la vidéo de '+title} title="Lire la vidéo" onClick={onPlay}>
+  <canvas ref={frame} width={240} height={160} className={'project-completed-frame'+(frameReady?' is-ready':'')} aria-hidden="true"/>
+  {url&&!frameReady&&<video className="project-frame-source" src={url} preload="metadata" muted playsInline disablePictureInPicture aria-hidden="true" tabIndex={-1}
+   onLoadedMetadata={e=>{const v=e.currentTarget;target.current=Number.isFinite(v.duration)&&v.duration>0?Math.min(4,v.duration*.2):0;try{v.currentTime=target.current;capture(v);}catch{target.current=v.currentTime;capture(v);}}}
+   onLoadedData={e=>capture(e.currentTarget)} onSeeked={e=>capture(e.currentTarget)} onCanPlay={e=>capture(e.currentTarget)} onError={()=>setUrl(null)}/>}
+  <span className="project-completed-shade" aria-hidden="true"/>
+  <img className="project-completed-logo-image" src="/galingtosh-icon.webp?v=2" width={36} height={36} alt="" draggable={false}/>
+  <span className="project-completed-play" aria-hidden="true"><Play size={9} fill="currentColor"/></span>
  </button>;
 }
 function Brand({small=false}:{small?:boolean}){return <div className={'brand '+(small?'brand--small':'')}><span className="brand-icon"><FilmstripLogo/></span><div className="brand-copy"><strong>Galingtosh</strong>{!small&&<span>STUDIO AUDIOVISUEL IA</span>}</div></div>}
@@ -423,7 +458,7 @@ export function App(){
       return <article className="android-project-item" key={p.id}>
         {rendering?<span className="project-item-art project-art-render" aria-hidden="true"><MotionEmblem mode={rendering.status==='running'?'rendering':'queued'} progress={rendering.progress}/></span>:
          failure?<span className="project-item-art project-art-failed" aria-hidden="true"><AlertCircle size={26}/></span>:
-         ready?.output_path?<CompletedProjectLogo title={p.title} onPlay={()=>{setProjectMenuId(null);void playRender(ready.output_path!)}}/>:
+         ready?.output_path?<CompletedProjectLogo key={ready.id+ready.output_path} path={ready.output_path} title={p.title} onPlay={()=>{setProjectMenuId(null);void playRender(ready.output_path!)}}/>:
          <span className="project-item-art project-art-draft" aria-hidden="true"><Film size={28}/></span>}
         <button className="project-item-main" onClick={()=>void openProject(p.id)} title={'Ouvrir '+p.title}>
           <span className="project-item-copy">

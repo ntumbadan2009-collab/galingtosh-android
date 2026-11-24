@@ -820,12 +820,18 @@
 @media(max-width:620px){.motion-stage{height:138px}.motion-stage-emblem{width:62px;height:62px}.motion-stage-title{top:10px;font-size:8px}.motion-stage-footer{bottom:10px;font-size:7px}.motion-emblem{width:30px;height:30px}}
 @media(prefers-reduced-motion:reduce){.motion-stage-canvas{display:none}.motion-stage-light,.motion-stage-emblem,.motion-thinking .motion-orbit,.motion-thinking img,.motion-rendering img,.motion-ready,.galingtosh-film-reveal video{animation:none!important}.motion-rendering .motion-trace,.brand-icon .galingtosh-brand-image{transition:none!important}.brand-icon:hover .galingtosh-brand-image{transform:none}}
 
-/* Project cards: static brand mark opens the finished video, title opens the studio. */
+/* Project cards: real video frame with centered brand mark opens the finished video. */
 .android-project-item{gap:14px;min-height:112px;align-items:center}
 .android-project-item .project-item-main{min-width:0;gap:0;align-self:stretch;align-items:center}
 .android-project-item .project-item-art{width:92px;height:64px;position:relative;overflow:hidden;flex:none;display:flex;align-items:center;justify-content:center}
-.android-project-item .project-completed-logo{padding:0;border:1px solid #493661;background:#181126}
-.android-project-item .project-completed-logo .project-completed-logo-image{display:block;position:static;flex:none;width:52px;height:52px;max-width:100%;max-height:100%;object-fit:contain;border-radius:50%;opacity:1;visibility:visible;transform:none;animation:none;margin:0}
+.android-project-item .project-completed-logo{padding:0;border:1px solid #493661;background:#100b19;isolation:isolate}
+.project-completed-frame{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;opacity:0;pointer-events:none}
+.project-completed-frame.is-ready{opacity:1}
+.project-frame-source{position:absolute;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none}
+.project-completed-shade{position:absolute;inset:0;background:radial-gradient(ellipse at center,#0005 0%,#0002 62%,#0004 100%);pointer-events:none}
+.android-project-item .project-completed-logo .project-completed-logo-image{display:block;position:relative;z-index:1;flex:none;width:36px;height:36px;max-width:100%;max-height:100%;object-fit:contain;border-radius:50%;opacity:1;visibility:visible;transform:none;animation:none;margin:0;box-shadow:0 0 9px #0009;pointer-events:none}
+.project-completed-play{position:absolute;z-index:2;right:4px;bottom:4px;display:grid;place-items:center;width:17px;height:17px;border-radius:50%;background:#080610b8;color:#fff;pointer-events:none}
+.android-project-item .project-completed-play svg{width:9px;height:9px;margin-left:1px}
 .project-completed-logo:focus-visible,.project-item-main:focus-visible{outline:2px solid #c99aff;outline-offset:3px}
 .android-project-item .project-art-failed{background:#33232d;color:#e4ad91}
 .android-project-item .project-art-draft{background:#211a32;color:#aa91cc}
