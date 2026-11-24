@@ -11,7 +11,7 @@ type SessionUser={id:string;email?:string};
 function FilmstripLogo(){return <img className="galingtosh-brand-image" src="/galingtosh-icon.webp" alt="" aria-hidden="true"/>}
 function CompletedProjectLogo({title,onPlay}:{title:string;onPlay:()=>void}){
  return <button type="button" className="project-item-art project-completed-logo" aria-label={'Lire la vidéo de '+title} title="Lire la vidéo" onClick={onPlay}>
-  <img src="/galingtosh-icon.webp" alt="" draggable={false}/>
+  <img className="project-completed-logo-image" src="/galingtosh-icon.webp?v=2" width={52} height={52} alt="" draggable={false}/>
  </button>;
 }
 function Brand({small=false}:{small?:boolean}){return <div className={'brand '+(small?'brand--small':'')}><span className="brand-icon"><FilmstripLogo/></span><div className="brand-copy"><strong>Galingtosh</strong>{!small&&<span>STUDIO AUDIOVISUEL IA</span>}</div></div>}

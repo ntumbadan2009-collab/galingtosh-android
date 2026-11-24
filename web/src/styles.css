@@ -825,7 +825,7 @@
 .android-project-item .project-item-main{min-width:0;gap:0;align-self:stretch;align-items:center}
 .android-project-item .project-item-art{width:92px;height:64px;position:relative;overflow:hidden;flex:none;display:flex;align-items:center;justify-content:center}
 .android-project-item .project-completed-logo{padding:0;border:1px solid #493661;background:#181126}
-.project-completed-logo img{display:block;width:auto;height:86%;max-width:90%;aspect-ratio:1;object-fit:contain;border-radius:50%}
+.android-project-item .project-completed-logo .project-completed-logo-image{display:block;position:static;flex:none;width:52px;height:52px;max-width:100%;max-height:100%;object-fit:contain;border-radius:50%;opacity:1;visibility:visible;transform:none;animation:none;margin:0}
 .project-completed-logo:focus-visible,.project-item-main:focus-visible{outline:2px solid #c99aff;outline-offset:3px}
 .android-project-item .project-art-failed{background:#33232d;color:#e4ad91}
 .android-project-item .project-art-draft{background:#211a32;color:#aa91cc}
