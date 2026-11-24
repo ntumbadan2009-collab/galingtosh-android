@@ -9,30 +9,9 @@ type Attachment={id:string;name:string};
 type Dialog='create'|'plan'|'scenes'|'settings'|null;
 type SessionUser={id:string;email?:string};
 function FilmstripLogo(){return <img className="galingtosh-brand-image" src="/galingtosh-icon.webp" alt="" aria-hidden="true"/>}
-/** Fetch only when a completed card approaches the visible viewport. Never autoplay. */
-function ProjectVideoThumb({path,title,onPlay}:{path:string;title:string;onPlay:()=>void}){
- const root=useRef<HTMLButtonElement>(null);
- const [url,setUrl]=useState<string|null>(null);
- const [frameReady,setFrameReady]=useState(false);
- const [failed,setFailed]=useState(false);
- useEffect(()=>{
-  let active=true,requested=false;
-  const load=()=>{if(requested)return;requested=true;void signedOutput(path).then(value=>{if(active)setUrl(value)}).catch(()=>{if(active)setFailed(true)});};
-  const element=root.current;
-  let observer:IntersectionObserver|undefined;
-  if(element&&typeof IntersectionObserver!=='undefined'){
-   observer=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting)){observer?.disconnect();load();}},{rootMargin:'100px'});
-   observer.observe(element);
-  }else load();
-  return()=>{active=false;observer?.disconnect();};
- },[path]);
- return <button type="button" ref={root} className="project-item-art project-video-thumb" aria-label={'Lire la vidéo de '+title} title="Lire la vidéo" onClick={onPlay}>
-  {url&&!failed&&<video className={frameReady?'project-video-frame is-ready':'project-video-frame'} src={url} muted playsInline preload="metadata" disablePictureInPicture aria-hidden="true"
-   onLoadedMetadata={e=>{const v=e.currentTarget;try{if(Number.isFinite(v.duration)&&v.duration>.2)v.currentTime=Math.min(2,v.duration*.18);else if(v.readyState>=2)setFrameReady(true);}catch{setFailed(true)}}}
-   onLoadedData={e=>{if(!e.currentTarget.seeking)setFrameReady(true)}}
-   onSeeked={()=>setFrameReady(true)} onError={()=>{setFailed(true);setFrameReady(false)}}/>}
-  {!frameReady&&<Film className="project-video-fallback" size={25} aria-hidden="true"/>}
-  <span className="project-play-overlay" aria-hidden="true"><Play size={15} fill="currentColor"/></span>
+function CompletedProjectLogo({title,onPlay}:{title:string;onPlay:()=>void}){
+ return <button type="button" className="project-item-art project-completed-logo" aria-label={'Lire la vidéo de '+title} title="Lire la vidéo" onClick={onPlay}>
+  <img src="/galingtosh-icon.webp" alt="" draggable={false}/>
  </button>;
 }
 function Brand({small=false}:{small?:boolean}){return <div className={'brand '+(small?'brand--small':'')}><span className="brand-icon"><FilmstripLogo/></span><div className="brand-copy"><strong>Galingtosh</strong>{!small&&<span>STUDIO AUDIOVISUEL IA</span>}</div></div>}
@@ -444,7 +423,7 @@ export function App(){
       return <article className="android-project-item" key={p.id}>
         {rendering?<span className="project-item-art project-art-render" aria-hidden="true"><MotionEmblem mode={rendering.status==='running'?'rendering':'queued'} progress={rendering.progress}/></span>:
          failure?<span className="project-item-art project-art-failed" aria-hidden="true"><AlertCircle size={26}/></span>:
-         ready?.output_path?<ProjectVideoThumb key={ready.id+ready.output_path} path={ready.output_path} title={p.title} onPlay={()=>{setProjectMenuId(null);void playRender(ready.output_path!)}}/>:
+         ready?.output_path?<CompletedProjectLogo title={p.title} onPlay={()=>{setProjectMenuId(null);void playRender(ready.output_path!)}}/>:
          <span className="project-item-art project-art-draft" aria-hidden="true"><Film size={28}/></span>}
         <button className="project-item-main" onClick={()=>void openProject(p.id)} title={'Ouvrir '+p.title}>
           <span className="project-item-copy">
