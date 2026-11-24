@@ -7,7 +7,7 @@ export function MotionEmblem({mode,progress}:{mode:MotionMode;progress?:number})
  return <span className={'motion-emblem motion-'+mode} aria-hidden="true">
   <svg className="motion-orbit" viewBox="0 0 44 44">
    <circle cx="22" cy="22" r="20" fill="none" stroke="currentColor" strokeOpacity=".18" strokeWidth="1.5"/>
-   <circle className="motion-trace" cx="22" cy="22" r="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" pathLength="100" strokeDasharray={mode==='rendering'?amount+' 100':mode==='ready'?'100 0':'24 76'}/>
+   <circle className="motion-trace" cx="22" cy="22" r="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" pathLength="100" strokeDasharray={mode==='rendering'?amount+' '+(100-amount):mode==='ready'?'100 0':mode==='thinking'?'24 76':'0 100'}/>
   </svg>
   <img src="/galingtosh-icon.webp" alt="" draggable={false}/>
  </span>;
