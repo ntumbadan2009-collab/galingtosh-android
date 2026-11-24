@@ -849,3 +849,28 @@
 .motion-queued .motion-trace,.motion-paused .motion-trace{opacity:0}
 @media(max-width:620px){.android-project-item{gap:10px;min-height:110px;padding:13px 12px}.android-project-item .project-item-art{width:82px;height:58px}.android-project-item .project-item-menu{width:38px;min-height:44px}}
 @media(max-width:350px){.android-project-item{gap:8px;padding:11px 9px}.android-project-item .project-item-art{width:68px;height:54px}}
+
+/* Galingtosh startup: one brief, non-interactive sequence per page load. */
+.gt-startup{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;overflow:hidden;isolation:isolate;background:radial-gradient(ellipse at 50% 43%,#1b0c2d 0%,#0b0814 38%,#05040a 76%);padding:max(20px,env(safe-area-inset-top)) 20px max(20px,env(safe-area-inset-bottom));opacity:1;transition:opacity .22s ease}
+.gt-startup-exit{opacity:0}
+.gt-startup-grid{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(#a66cf10b 1px,transparent 1px),linear-gradient(90deg,#a66cf10b 1px,transparent 1px);background-size:42px 42px;mask-image:radial-gradient(ellipse at center,#000 0%,transparent 68%);opacity:.7}
+.gt-startup-content{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;width:min(100%,420px)}
+.gt-startup-symbol{position:relative;width:190px;height:190px;display:grid;place-items:center;perspective:560px;margin-bottom:20px}
+.gt-startup-halo{position:absolute;inset:1px;border-radius:50%;background:radial-gradient(circle,#a843ed42 0%,#9c42f31a 38%,transparent 72%);animation:gt-startup-halo 1.35s ease-out both;pointer-events:none}
+.gt-startup-symbol img{position:relative;z-index:2;display:block;width:124px;height:124px;object-fit:contain;border-radius:50%;box-shadow:0 0 24px #a842f446;animation:gt-startup-logo 1.12s cubic-bezier(.2,.8,.23,1) both;transform-origin:center}
+.gt-startup-orbit{position:absolute;border-radius:50%;pointer-events:none;border:1px solid transparent}
+.gt-startup-orbit-a{inset:12px;border-top-color:#ce8dffb0;border-right-color:#9854f51c;animation:gt-startup-orbit-a 1.2s cubic-bezier(.2,.8,.23,1) both}
+.gt-startup-orbit-b{inset:1px;border-bottom-color:#c07af480;border-left-color:#ab67f51c;animation:gt-startup-orbit-b 1.35s cubic-bezier(.2,.8,.23,1) both}
+.gt-startup-wordmark{font-family:Outfit,'DM Sans',sans-serif;color:#faf5ff;font-size:clamp(32px,8vw,46px);font-weight:800;letter-spacing:-.065em;line-height:1.05;animation:gt-startup-text .55s .33s both}
+.gt-startup-tagline{font-size:10px;font-weight:700;letter-spacing:.25em;color:#c6addd;margin-top:12px;animation:gt-startup-text .55s .45s both}
+.gt-startup-status{display:flex;align-items:center;gap:7px;font-size:12px;color:#a698b7;margin-top:38px;animation:gt-startup-text .45s .58s both}
+.gt-startup-status-dot{width:6px;height:6px;border-radius:50%;background:#bb84f6;box-shadow:0 0 9px #aa57f7}
+.gt-startup-waiting .gt-startup-status-dot{animation:gt-startup-wait 1.5s ease-in-out infinite}
+@keyframes gt-startup-logo{0%{opacity:0;transform:rotateY(-85deg) rotateZ(-22deg) scale(.7)}45%{opacity:1}75%{transform:rotateY(7deg) rotateZ(3deg) scale(1.025)}100%{opacity:1;transform:none}}
+@keyframes gt-startup-orbit-a{0%{opacity:0;transform:rotate(-160deg) scale(.72)}50%{opacity:.9}100%{opacity:0;transform:rotate(45deg) scale(1.04)}}
+@keyframes gt-startup-orbit-b{0%{opacity:0;transform:rotate(130deg) scale(1.15)}48%{opacity:.65}100%{opacity:0;transform:rotate(-40deg) scale(.97)}}
+@keyframes gt-startup-halo{0%{opacity:0;transform:scale(.65)}55%{opacity:1;transform:scale(1.16)}100%{opacity:.65;transform:scale(1)}}
+@keyframes gt-startup-text{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:translateY(0)}}
+@keyframes gt-startup-wait{50%{opacity:.35}}
+@media(max-height:420px){.gt-startup-symbol{width:135px;height:135px;margin-bottom:8px}.gt-startup-symbol img{width:88px;height:88px}.gt-startup-status{margin-top:15px}.gt-startup-wordmark{font-size:30px}.gt-startup-tagline{margin-top:7px}}
+@media(prefers-reduced-motion:reduce){.gt-startup,.gt-startup *{animation:none!important;transition:none!important}.gt-startup-orbit{display:none}}

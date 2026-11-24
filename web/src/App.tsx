@@ -151,8 +151,40 @@ function Auth({onAuth}:{onAuth:()=>void}){
   </section>
  </div></div>;
 }
+function StartupScreen({waiting,leaving}:{waiting:boolean;leaving:boolean}){
+ return <div className={'gt-startup'+(leaving?' gt-startup-exit':'')} role="status" aria-live="polite" aria-label="Ouverture de Galingtosh">
+  <div className="gt-startup-grid" aria-hidden="true"/>
+  <div className="gt-startup-content">
+   <div className="gt-startup-symbol" aria-hidden="true">
+    <div className="gt-startup-halo"/>
+    <div className="gt-startup-orbit gt-startup-orbit-a"/>
+    <div className="gt-startup-orbit gt-startup-orbit-b"/>
+    <img src="/galingtosh-icon.webp?v=2" width={124} height={124} alt="" draggable={false}/>
+   </div>
+   <div className="gt-startup-wordmark">Galingtosh</div>
+   <div className="gt-startup-tagline">STUDIO AUDIOVISUEL IA</div>
+   <div className={'gt-startup-status'+(waiting?' gt-startup-waiting':'')}>
+    <span className="gt-startup-status-dot" aria-hidden="true"/>
+    {waiting?'Connexion au studio…':'Ouverture du studio…'}
+   </div>
+  </div>
+ </div>;
+}
 export function App(){
  const[user,setUser]=useState<SessionUser|null>(null),[authReady,setAuthReady]=useState(false);
+ // Authenticate concurrently; never replay the intro on tab or project changes.
+ const [introElapsed,setIntroElapsed]=useState(()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+ const [introDone,setIntroDone]=useState(()=>window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+ useEffect(()=>{
+  if(introElapsed)return;
+  const timer=window.setTimeout(()=>setIntroElapsed(true),1450);
+  return()=>window.clearTimeout(timer);
+ },[introElapsed]);
+ useEffect(()=>{
+  if(!authReady||!introElapsed||introDone)return;
+  const timer=window.setTimeout(()=>setIntroDone(true),220);
+  return()=>window.clearTimeout(timer);
+ },[authReady,introElapsed,introDone]);
  const[tab,setTab]=useState<Tab>('studio'),[sidebarOpen,setSidebarOpen]=useState(false);
  const[projects,setProjects]=useState<Project[]>([]),[jobs,setJobs]=useState<Render[]>([]),[assets,setAssets]=useState<Asset[]>([]);
  const[projectId,setProjectId]=useState<string|null>(null),[conversationId,setConversationId]=useState<string|null>(null);
@@ -370,7 +402,7 @@ export function App(){
  }
  async function renameProject(){const id=projectMenuId||projectId;if(!id||!renameValue.trim()||actionBusy||!user)return;setActionBusy(true);try{const{error}=await db.from('projects').update({title:renameValue.trim()}).eq('id',id).eq('user_id',user.id);if(error)throw error;setProjectMenu(false);setProjectMenuId(null);await refreshGlobal();}catch(e){alertError(e)}finally{setActionBusy(false)}}
  async function logout(){await db.auth.signOut();setDialog(null);setUser(null);}
- if(!authReady)return <div className="boot"><Brand/><LoaderCircle className="spin"/></div>;
+ if(!authReady||!introDone)return <StartupScreen waiting={!authReady&&introElapsed} leaving={authReady&&introElapsed}/>;
  if(!user)return <Auth onAuth={()=>void refreshGlobal()}/>;
  return <div className={"shell"+(keyboardOpen?" keyboard-open":"")}>
   {sidebarOpen&&<div className="mobile-scrim" onClick={()=>setSidebarOpen(false)}/>}
