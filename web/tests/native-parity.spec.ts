@@ -86,8 +86,10 @@ test('Android media: finished videos as rows, actual assets in two-column thumbn
 
 test('Studio remains intentionally empty, with Android brand mark and full-width composer',async({page})=>{
  await expect(page.getByRole('heading',{name:'Tout commence par une idée'})).toHaveCount(0);
- const logo=page.locator('.android-header .brand-icon svg path');
- await expect(logo).toHaveAttribute('d',/^M436,80H76/);
+ const logo=page.locator('.android-header .brand-icon img.galingtosh-brand-image');
+ await expect(logo).toBeVisible();
+ await expect(logo).toHaveAttribute('src','/galingtosh-icon.webp');
+ await expect.poll(()=>logo.evaluate((img:HTMLImageElement)=>img.complete&&img.naturalWidth>0)).toBe(true);
  const composer=await page.locator('.composer').boundingBox();
  if(!composer)throw Error('Studio composer not measurable');
  expect(composer.width).toBeGreaterThan(310);
