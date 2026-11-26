@@ -21,3 +21,16 @@ test('activity journal only confirms outcomes persisted by the server',()=>{
  ]);
  assert.equal(done[0].events[0].status,'done');
 });
+
+test('new audiovisual operations have explicit labels in native and web journals',async()=>{
+ const native=await import('../src/lib/agentActivity.ts');
+ const web=await import('../web/src/agentActivity.ts');
+ for(const lib of [native,web]){
+  for(const key of ['add_code_shot','turn_shot_into_code','verify_shot_media','apply_scene_montage','review_documentary_scene'])assert.notEqual(lib.activityLabel(key),'Étape de production');
+  assert.match(lib.missionBlockReason('no_action_selected'),/action exploitable/);
+  assert.equal(lib.missionBlockReason('unknown_secret_error'),null);
+  assert.match(lib.taskFailureDetail({kind:'add_code_shot',status:'failed',error_detail:"Nombre d'éléments non pris en charge"}),/Nombre d’éléments/);
+  assert.equal(lib.taskFailureDetail({kind:'add_code_shot',status:'done',error_detail:'visualItems manquant'}),null);
+  assert.equal(lib.taskFailureDetail({kind:'add_code_shot',status:'failed',error_detail:'raw_private_details'}),null);
+ }
+});

@@ -12,7 +12,7 @@ import * as Clipboard from 'expo-clipboard';
 import {VideoView,useVideoPlayer} from 'expo-video';
 import {supabase,supabaseConfigured,SUPABASE_URL} from './src/lib/supabase';
 import {sendToAgent,recoverAgentResponse} from './src/lib/ai';
-import {buildActivityTurns,activityLabel,type ActivityRow,type ActivityTurn} from './src/lib/agentActivity';
+import {buildActivityTurns,activityLabel,missionBlockReason,taskFailureDetail,type ActivityRow,type ActivityTurn} from './src/lib/agentActivity';
 import {trailingSpace,anchorOffset,canAnchor} from './src/lib/chatLayout';
 import {readProduction,controlProduction,activeProduction,creativePlanHeadline,creativePlanFormat,PRODUCTION_LABELS,type ProductionMission,type MissionTask} from './src/lib/production';
 import {getRenderDownloadUrl,getRenderJob,listRenderJobs,requestRender,RenderJob} from './src/lib/render';
@@ -207,7 +207,7 @@ function AppContent(){
    ?(lastStepLabel?(latestMissionTask?.status==='started'?'En cours : ':'Dernière étape : ')+lastStepLabel:'Organisation des étapes de production')
    :mission?.status==='queued'?'En attente du moteur de production'
    :mission?.status==='paused'?'Opérations suspendues'
-   :mission?.status==='needs_review'?'Une étape nécessite une vérification'
+   :mission?.status==='needs_review'?(missionBlockReason(mission.error_code)||'Une étape nécessite une vérification')
    :mission?.status==='done'?'Production terminée'
    :'';
 
@@ -671,7 +671,8 @@ function AppContent(){
       </View>:<View style={{gap:12}}>
        {missionRender?<View style={{gap:6}}><Text style={s.cardSub}>Rendu : {JOB_LABELS[missionRender.status]||missionRender.status}{missionRender.status==='running'?' · '+(missionRender.progress||0)+'%':''}</Text>{missionRender.status==='running'?<View style={s.progressTrack}><View style={[s.progressFill,{width:(Math.max(0,Math.min(100,missionRender.progress||0))+'%') as any}]}/></View>:null}</View>:null}
        <Text style={s.cardTitle}>Journal des étapes</Text>
-       {production?.tasks.length?production.tasks.slice(0,25).map(t=><View key={t.step_no} style={{flexDirection:'row',gap:9,alignItems:'center'}}><Feather name={t.status==='done'?'check-circle':t.status==='failed'||t.status==='uncertain'?'alert-circle':'clock'} color={t.status==='done'?C.green:t.status==='failed'||t.status==='uncertain'?C.amber:C.muted} size={17}/><View style={{flex:1}}><Text style={s.cardSub}>Étape {t.step_no} · {activityLabel(t.kind)}</Text><Text style={s.cardMeta}>{t.status==='done'?'Confirmée':t.status==='failed'?'Échouée':t.status==='uncertain'?'À vérifier':'En cours'}</Text></View></View>):<Text style={s.cardSub}>Aucune opération enregistrée pour le moment.</Text>}
+       {mission.status==='needs_review'&&missionBlockReason(mission.error_code)?<Text style={[s.cardSub,{color:C.amber}]}>{missionBlockReason(mission.error_code)}</Text>:null}
+       {production?.tasks.length?production.tasks.slice(0,25).map(t=><View key={t.step_no} style={{flexDirection:'row',gap:9,alignItems:'center'}}><Feather name={t.status==='done'?'check-circle':t.status==='failed'||t.status==='uncertain'?'alert-circle':'clock'} color={t.status==='done'?C.green:t.status==='failed'||t.status==='uncertain'?C.amber:C.muted} size={17}/><View style={{flex:1}}><Text style={s.cardSub}>Étape {t.step_no} · {activityLabel(t.kind)}</Text><Text style={s.cardMeta}>{t.status==='done'?'Confirmée':t.status==='failed'?'Échouée':t.status==='uncertain'?'À vérifier':'En cours'}</Text>{taskFailureDetail(t)?<Text style={[s.cardMeta,{color:C.amber}]}>{taskFailureDetail(t)}</Text>:null}</View></View>):<Text style={s.cardSub}>Aucune opération enregistrée pour le moment.</Text>}
        {missionWorking&&!mission.requested_action?<Button title="Mettre en pause" secondary disabled={productionControlBusy} icon="pause" onPress={()=>void runMissionCommand('pause')}/>:null}
        {mission.status==='paused'?<Button title="Reprendre" icon="play" disabled={productionControlBusy} onPress={()=>void runMissionCommand('resume')}/>:null}
        {missionActive&&!mission.requested_action?<Button title="Annuler la mission" secondary disabled={productionControlBusy} onPress={()=>Alert.alert('Annuler cette production ?','Les éléments déjà réalisés seront conservés.',[{text:'Conserver',style:'cancel'},{text:'Annuler',style:'destructive',onPress:()=>void runMissionCommand('cancel')}])}/>:null}

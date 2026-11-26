@@ -86,8 +86,10 @@ test('Android media: finished videos as rows, actual assets in two-column thumbn
 
 test('Studio remains intentionally empty, with Android brand mark and full-width composer',async({page})=>{
  await expect(page.getByRole('heading',{name:'Tout commence par une idée'})).toHaveCount(0);
- const logo=page.locator('.android-header .brand-icon svg path');
- await expect(logo).toHaveAttribute('d',/^M436,80H76/);
+ const logo=page.locator('.android-header .brand-icon img.galingtosh-brand-image');
+ await expect(logo).toBeVisible();
+ await expect(logo).toHaveAttribute('src','/galingtosh-icon.webp');
+ await expect.poll(()=>logo.evaluate((img:HTMLImageElement)=>img.complete&&img.naturalWidth>0)).toBe(true);
  const composer=await page.locator('.composer').boundingBox();
  if(!composer)throw Error('Studio composer not measurable');
  expect(composer.width).toBeGreaterThan(310);
@@ -95,7 +97,27 @@ test('Studio remains intentionally empty, with Android brand mark and full-width
  if(!nav)throw Error('Mobile tabs not visible');
  expect(nav.y+nav.height).toBeGreaterThan(750);
  await page.locator('#composer').focus();
+ // Headless Chromium does not show an OS keyboard on focus. Simulate the
+ // visible viewport shrinking (as on Android) without changing layout width.
+ await expect(page.locator('.topbar.android-header')).toBeVisible();
+ await page.evaluate(()=>{
+  const viewport=window.visualViewport;
+  if(!viewport)throw Error('VisualViewport required');
+  const before=viewport.height;
+  Object.defineProperty(viewport,'height',{configurable:true,get:()=>before-280});
+  viewport.dispatchEvent(new Event('resize'));
+ });
+ await expect(page.locator('.shell')).toHaveClass(/keyboard-open/);
  await expect(page.locator('.topbar.android-header')).toBeHidden();
  await expect(page.locator('.mobile-nav.android-tabs')).toBeHidden();
+ await expect(page.locator('#composer')).toBeVisible();
  await page.screenshot({path:'test-results/studio-keyboard-layout.png'});
+ await page.evaluate(()=>{
+  const viewport=window.visualViewport!;
+  Reflect.deleteProperty(viewport,'height');
+  (document.activeElement as HTMLElement|null)?.blur();
+  viewport.dispatchEvent(new Event('resize'));
+ });
+ await expect(page.locator('.topbar.android-header')).toBeVisible();
+ await expect(page.locator('.mobile-nav.android-tabs')).toBeVisible();
 });
