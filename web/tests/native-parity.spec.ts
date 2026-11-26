@@ -97,7 +97,27 @@ test('Studio remains intentionally empty, with Android brand mark and full-width
  if(!nav)throw Error('Mobile tabs not visible');
  expect(nav.y+nav.height).toBeGreaterThan(750);
  await page.locator('#composer').focus();
+ // Headless Chromium does not show an OS keyboard on focus. Simulate the
+ // visible viewport shrinking (as on Android) without changing layout width.
+ await expect(page.locator('.topbar.android-header')).toBeVisible();
+ await page.evaluate(()=>{
+  const viewport=window.visualViewport;
+  if(!viewport)throw Error('VisualViewport required');
+  const before=viewport.height;
+  Object.defineProperty(viewport,'height',{configurable:true,get:()=>before-280});
+  viewport.dispatchEvent(new Event('resize'));
+ });
+ await expect(page.locator('.shell')).toHaveClass(/keyboard-open/);
  await expect(page.locator('.topbar.android-header')).toBeHidden();
  await expect(page.locator('.mobile-nav.android-tabs')).toBeHidden();
+ await expect(page.locator('#composer')).toBeVisible();
  await page.screenshot({path:'test-results/studio-keyboard-layout.png'});
+ await page.evaluate(()=>{
+  const viewport=window.visualViewport!;
+  Reflect.deleteProperty(viewport,'height');
+  (document.activeElement as HTMLElement|null)?.blur();
+  viewport.dispatchEvent(new Event('resize'));
+ });
+ await expect(page.locator('.topbar.android-header')).toBeVisible();
+ await expect(page.locator('.mobile-nav.android-tabs')).toBeVisible();
 });
