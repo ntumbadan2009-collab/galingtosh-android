@@ -2,7 +2,7 @@ import {supabase} from './supabase';
 import {functionError} from './functionError';
 export type ProductionStatus='draft'|'queued'|'running'|'waiting_render'|'paused'|'needs_review'|'done'|'failed'|'canceled';
 export type ProductionMission={id:string;project_id:string;conversation_id:string;plan:string;target_seconds:number;status:ProductionStatus;step_count:number;requested_action:'pause'|'cancel'|null;error_code:string|null;render_job_id:string|null;updated_at:string};
-export type MissionTask={step_no:number;kind:string;status:'started'|'done'|'failed'|'uncertain'};
+export type MissionTask={step_no:number;kind:string;status:'started'|'done'|'failed'|'uncertain';error_detail?:string|null;reason_detail?:string|null};
 export const activeProduction=(m:ProductionMission|null|undefined)=>!!m&&['queued','running','waiting_render','paused','needs_review'].includes(m.status);
 export const PRODUCTION_LABELS:Record<ProductionStatus,string>={draft:'Direction créative proposée',queued:'Production en attente',running:'Production autonome en cours',waiting_render:'Montage transmis au moteur vidéo',paused:'Production en pause',needs_review:'Vérification nécessaire',done:'Production terminée',failed:'Production interrompue',canceled:'Production annulée'};
 /** Present only a compact headline; the full approved plan is still kept intact. */
@@ -21,7 +21,7 @@ export async function readProduction(projectId:string):Promise<{mission:Producti
  if(error)throw error;
  const mission=data as ProductionMission|null;
  if(!mission)return {mission:null,tasks:[]};
- const {data:tasks,error:taskError}=await supabase.from('production_tasks').select('step_no,kind,status').eq('mission_id',mission.id).order('step_no',{ascending:false}).limit(60);
+ const {data:tasks,error:taskError}=await supabase.from('production_tasks').select('step_no,kind,status,error_detail:result->>error,reason_detail:result->>reason').eq('mission_id',mission.id).order('step_no',{ascending:false}).limit(60);
  if(taskError)throw taskError;
  return {mission,tasks:(tasks||[]) as MissionTask[]};
 }

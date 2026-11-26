@@ -9,6 +9,12 @@ export type ActivityEvent = {
 };
 export type ActivityTurn = {id:string; time:string; events:ActivityEvent[]};
 const LABELS:Record<string,string>={
+ activate_autonomous_level5:'Initialisation de la réalisation',creative_narrative:'Direction narrative',creative_visual:'Direction visuelle',creative_director:'Direction artistique',
+ set_editorial_profile:'Style éditorial',plan_scene_beats:'Découpage narratif',review_documentary_scene:'Vérification documentaire',
+ add_code_shot:'Création d’une illustration animée',turn_shot_into_code:'Remplacement du visuel par une illustration',set_motion_visual:'Animation graphique',verify_shot_media:'Contrôle de pertinence visuelle',
+ set_editorial_accents:'Accents sonores',verify_and_add_sound:'Vérification d’un effet sonore',apply_scene_montage:'Montage de la scène',
+ audit_editorial_rhythm:'Contrôle du rythme',audit_director_intelligence:'Contrôle de la réalisation',audit_production_foundations:'Contrôle des fondations',
+ director_review_requested:'Préparation du contrôle final',director_plan_review:'Contrôle artistique avant rendu',
  create_project:'Création du projet',get_film:'Lecture du montage',
  set_project_info:'Organisation du projet',set_format:'Choix du format',
  set_render_params:'Réglages de production',add_character:'Création d’un personnage',
@@ -82,4 +88,35 @@ export function buildActivityTurns(rows:ActivityRow[]):ActivityTurn[]{
   }
  }
  return turns;
+}
+
+/** Only known user-facing categories. Never expose raw internal error data. */
+export function missionBlockReason(code:string|null|undefined):string|null{
+ switch(code){
+  case 'no_action_selected':return 'L’IA n’a pas proposé d’action exploitable.';
+  case 'repeated_invalid_action':return 'Une action déjà refusée a été répétée.';
+  case 'model_temporarily_unavailable':return 'Le modèle IA est temporairement indisponible.';
+  case 'voice_measurement_failed':case 'voice_measurement_invalid':return 'La durée des voix n’a pas pu être mesurée correctement.';
+  case 'montage_decision_invalid':case 'montage_model_unavailable':return 'La passe de montage nécessite une vérification.';
+  case 'director_review_invalid':case 'director_review_unavailable':return 'Le contrôle artistique n’a pas abouti.';
+  case 'render_dispatch_failed':case 'render_unsuccessful':return 'Le rendu n’a pas abouti.';
+  case 'operation_budget_exhausted':return 'La limite d’opérations a été atteinte.';
+  default:return null;
+ }
+}
+export function taskFailureDetail(task:{kind:string;status:string;error_detail?:string|null;reason_detail?:string|null}):string|null{
+ if(task.status!=='failed')return null;
+ const e=(task.error_detail??'').toLowerCase();
+ if(task.kind==='verify_shot_media'&&task.reason_detail)return 'Le visuel ne correspond pas assez à la narration.';
+ if(e.includes('nombre d’éléments')||e.includes("nombre d'éléments"))return 'Nombre d’éléments incorrect pour le schéma.';
+ if(e.includes('visualitems'))return 'Les éléments de l’animation sont manquants ou invalides.';
+ if(e.includes('visualtext')&&e.includes('long'))return 'Le texte de l’illustration est trop long.';
+ if(e.includes('contraste explicite'))return 'Le contraste demandé n’est pas exprimé dans la narration.';
+ if(e.includes('causalité'))return 'La relation causale demandée n’est pas exprimée dans la narration.';
+ if(e.includes('quota')||e.includes('http 429'))return 'Quota de l’IA atteint pendant cette opération.';
+ if(e.includes('cannot fetch content'))return 'Le média n’est pas accessible au modèle de vision.';
+ if(e.includes('durée')||e.includes('secondes'))return 'Durée ou minutage à corriger.';
+ if(e.includes('citation')||e.includes('citer exactement'))return 'La citation ne correspond pas exactement à la narration.';
+ if(e.includes('introuvable'))return 'Le plan ou le média n’a pas été retrouvé.';
+ return null;
 }

@@ -1,3 +1,4 @@
+import {taskFailureDetail} from './agentActivity';
 import {createClient} from '@supabase/supabase-js';
 export const endpoint=import.meta.env.VITE_SUPABASE_URL||'https://lmlwekcytivszlszmfvy.supabase.co';
 const key=import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY||'sb_publishable_kmotb1BBdQ20kWuB-ryirQ_9Rqcq88U';
@@ -77,6 +78,7 @@ const taskNames:Record<string,string>={
 export function stageName(task:Task){return taskNames[task.kind]||'Opération de production';}
 export function taskDetail(task:Task):string|null{
  if(task.status!=='failed')return null;
+ const known=taskFailureDetail(task);if(known)return known;
  const error=(task.error_detail||'').toLowerCase();
  if(task.reason_detail&&task.kind==='verify_shot_media')return 'Le visuel ne correspond pas assez à la narration.';
  if(error.includes('citation')||error.includes('citer exactement'))return 'La citation ne correspond pas exactement à la narration.';
